@@ -5,11 +5,10 @@
 
 using namespace std::chrono_literals;
 const uint led_pin = 25;
-
+const uint button_pin = 16;
 /// Task blinking the LED twice per second.
 task<> blink() {
   for (int i = 0; true; ++i) {
-    std::cout << "Task-based Blink++ " << i << std::endl;
     co_await events::sleep(250ms);
     gpio_put(led_pin, 1);
     co_await events::sleep(250ms);
@@ -19,10 +18,25 @@ task<> blink() {
 
 /// Task printing every 3 seconds.
 task<> report() {
+  auto t0 = co_await events::sleep(0s);
   for (int i = 0; true; ++i) {
-    std::cout << "Three seconds x " << i << std::endl;
-    co_await events::sleep(3s);
+    auto t = co_await events::sleep(3s);
+    std::cout << "Time " << 1e-6*(t-t0) << std::endl;
   }
+}
+
+task<> pin() {
+  events::pin_listener<button_pin> pinListener;
+  for(int i = 0; true; ++i) {
+    auto event = co_await pinListener.next();
+    std::cout << "Event is " << event << std::endl;
+  }
+
+}
+
+void pinChange(uint pin, uint32_t event)
+{
+  std::cout << "Pin " << pin << " had event " << event << std::endl;
 }
 
 int main() {
@@ -33,5 +47,5 @@ int main() {
   stdio_init_all();
 
   // Start the main loop with two tasks.
-  loop_control.loop(blink(), report());
+  loop_control.loop(blink(), report(), pin());
 }
