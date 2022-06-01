@@ -1,0 +1,39 @@
+.program DS1820
+.wrap_target
+again:
+  pull block
+  mov x, osr
+  jmp !x, read
+write:  set pindirs, 1
+  set pins, 0
+loop1:
+    jmp x--,loop1
+set pindirs, 0 [31]
+wait 1 pin 0 [31]
+  pull block
+  mov x, osr
+bytes1:
+   pull block
+  set y, 7
+  set pindirs, 1
+bit1:
+  set pins, 0 [1]
+  out pins,1 [31]
+    set pins, 1 [20]
+   jmp y--,bit1
+jmp x--,bytes1
+set pindirs, 0 [31]
+jmp again
+read:
+  pull block
+  mov x, osr
+bytes2:
+  set y, 7
+bit2:
+  set pindirs, 1
+  set pins, 0 [1]
+  set pindirs, 0 [5]
+  in pins,1 [10]
+jmp y--,bit2
+jmp x--,bytes2
+.wrap
