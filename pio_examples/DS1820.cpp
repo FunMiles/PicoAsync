@@ -17,6 +17,27 @@
 using namespace std::chrono_literals;
 
 using namespace std;
+
+uint tickWrap=0;
+
+uint wpCount{0x1000000u};
+
+task<> wrapTick() {
+  auto tick = systick_hw->cvr;
+  while(true) {
+    co_await events::sleep(3ms);
+    auto tick2 = systick_hw->cvr;
+    if (tick2 > tick)
+      tickWrap += 0x1000000u;
+    tick = tick2;
+    ++wpCount;
+  }
+}
+
+uint32_t getTicks() {
+  return tickWrap - systick_hw->cvr;
+}
+
 uint8_t crc8(span<uint8_t> data)
 {
 	uint8_t crc = 0;
@@ -34,33 +55,40 @@ uint8_t crc8(span<uint8_t> data)
 	}
 	return crc;
 }
-void writeBytes(PIO pio, uint sm, uint8_t bytes[],
-                int len)
+uint32_t writeTicks;
+void writeBytes(PIO pio, uint sm, span<uint8_t> bytes)
 {
+        auto t0 = getTicks();
+        auto len = bytes.size();
 	pio_sm_put_blocking(pio, sm, 250);
 	pio_sm_put_blocking(pio, sm, len - 1);
 	for (int i = 0; i < len; i++)
 	{
 		pio_sm_put_blocking(pio, sm, bytes[i]);
 	}
+        writeTicks = getTicks() - t0;
 }
+
+uint32_t readTicks;
 void readBytes(PIO pio, uint sm, span<uint8_t> bytes)
 {
+        auto t0 = getTicks();
 	pio_sm_put_blocking(pio, sm, 0);
 	pio_sm_put_blocking(pio, sm, bytes.size() - 1);
 	for (int i = 0; i < bytes.size(); i++)
 	{
 		bytes[i] = pio_sm_get_blocking(pio, sm) >> 24;
 	}
+        readTicks = getTicks() - t0;
 }
 
 task<float> getTemperature(PIO pio, uint sm)
 {
-	uint8_t w1[] = {0xCC, 0x44};
-	writeBytes(pio, sm, w1, 2);
+	uint8_t w1[2] = {0xCC, 0x44};
+	writeBytes(pio, sm, w1);
         co_await events::sleep(1000ms);
-	uint8_t w2[] = {0xCC, 0xBE};
-	writeBytes(pio, sm, w2, 2);
+	uint8_t w2[2] = {0xCC, 0xBE};
+	writeBytes(pio, sm, w2);
 	array<uint8_t,9> data;
 	readBytes(pio, sm, data);
 	uint8_t crc = crc8(data);
@@ -120,21 +148,6 @@ task<> blink() {
   }
 }
 
-uint tickWrap=0;
-
-uint wpCount{0x1000000u};
-
-task<> wrapTick() {
-  auto tick = systick_hw->cvr;
-  while(true) {
-    co_await events::sleep(3ms);
-    auto tick2 = systick_hw->cvr;
-    if (tick2 > tick)
-      tickWrap += 0x1000000u;
-    tick = tick2;
-    ++wpCount;
-  }
-}
 /// Task printing every 3 seconds.
 task<> report() {
   // Systick counts down and is only 24 bits. wrapTick() counts the wrapping
@@ -148,8 +161,8 @@ task<> report() {
     auto stA = systick_hw->cvr;
     auto st1 = tickWrap - systick_hw->cvr;
     auto stB = systick_hw->cvr;
-    std::cout << "Time " << 1e-6*(t-t0) << " systick " << (st1-st0) << " wrap " << wpCount
-              << " Up or down? " << (stA-stB) << std::endl;
+    std::cout << "Time " << 1e-6*(t-t0) << " systick " << (st1-st0) << " write ticks " << writeTicks
+              << " read ticks " << readTicks << std::endl;
     st0 = st1;
   }
 }
