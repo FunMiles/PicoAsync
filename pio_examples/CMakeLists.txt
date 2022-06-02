@@ -2,7 +2,7 @@ add_executable(pio_DS1820)
 add_executable(pio_DS1820_DMA)
 # by default the header is generated into the build dir
 pico_generate_pio_header(pio_DS1820 ${CMAKE_CURRENT_LIST_DIR}/DS1820.pio)
-pico_generate_pio_header(pio_DS1820_DMA ${CMAKE_CURRENT_LIST_DIR}/DS1820.pio)
+pico_generate_pio_header(pio_DS1820_DMA ${CMAKE_CURRENT_LIST_DIR}/DS1820_DMA.pio)
 
 # however, alternatively you can choose to generate it somewhere else (in this case in the source tree for check in)
 #pico_generate_pio_header(pio_blink ${CMAKE_CURRENT_LIST_DIR}/blink.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR})

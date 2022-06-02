@@ -1,0 +1,38 @@
+.program DS1820
+.wrap_target
+again:
+  pull block
+  out x, 16           ; Get lower 16 bits of header. 0 for read, delay for write
+  jmp !x, read
+write:
+  set pindirs, 1
+  set pins, 0
+loop1:
+  jmp x--,loop1       ; Delay based on first data
+  set pindirs, 0 [31] ; Set to input
+  wait 1 pin 0 [31]   ; Wait for input pin 0 to be 1, ack from thermometer + delay
+  out x, 16           ; Get the amount of data to write
+bytes1:
+  pull block          ; Get the data
+  set y, 7
+  set pindirs, 1      ; Set to output
+bit1:
+  set pins, 0 [1]     ; Set pin to 0 for 2 cycles
+  out pins, 1 [31]    ; Output 1 bit and hold for 32 cycles total.
+  set pins, 1 [20]    ; Set pin to 1 for 21 cycles
+  jmp y--,bit1        ; Go to the next bit if any.
+  jmp x--,bytes1      ; Go to the next byte if any.
+  set pindirs, 0 [31] ; Set to input for 32 cycles
+  jmp again           ; Return to get the  next command
+read:
+  out x, 16           ; Get number of bytes to read 16 upper bits of header.
+bytes2:
+  set y, 7            ; Counter to read 8 bits total
+bit2:
+  set pindirs, 1      ; Set pin to output mode
+  set pins, 0 [1]     ; Set pin to 0 for 2 cycles bit sync
+  set pindirs, 0 [5]  ; Set pin to input and wait 6 cycles total
+  in pins,1 [10]      ; Get the data in the shift register and wait 11 cycles total
+  jmp y--,bit2        ; Next bit
+  jmp x--,bytes2      ; Next byte
+.wrap

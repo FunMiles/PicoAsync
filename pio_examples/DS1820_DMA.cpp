@@ -8,7 +8,7 @@
 #include "Async/events.h"
 #include "Async/task.h"
 
-#include "DS1820.pio.h"
+#include "DS1820_DMA.pio.h"
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"
 
