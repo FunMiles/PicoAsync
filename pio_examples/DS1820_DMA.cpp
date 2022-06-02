@@ -64,13 +64,22 @@ crc8(span<uint8_t> data)
 	return crc;
 }
 uint32_t writeTicks;
+
+
+void
+sendHeader(PIO pio, uint sm, uint16_t first, uint16_t second)
+{
+	uint32_t header = static_cast<uint32_t>(first) |
+	                  (static_cast<uint32_t>(second) << 16u);
+	pio_sm_put_blocking(pio, sm, header);
+}
+
 void
 writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 {
 	auto t0 = getTicks();
 	auto len = bytes.size();
-	pio_sm_put_blocking(pio, sm, 250);
-	pio_sm_put_blocking(pio, sm, len - 1);
+	sendHeader(pio, sm, 250, len-1);
 	for (int i = 0; i < len; i++) {
 		pio_sm_put_blocking(pio, sm, bytes[i]);
 	}
@@ -111,17 +120,11 @@ getTemperature_DMA(PIO pio, uint sm)
 	auto t2 = getTicks();
 	triggerDMAReceive(buffer);
 
-	// TODO Make the the three writing a single asynchronous one.
-	// As is this takes almost a millisecond.
-	// Alternatively change the handling. Overall this uses 6 blocking put to FIFO
-	// Each only has 1 byte. The write takes 4 and can collapse to 2
 	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
 	// Tell the PIO code we want to read and how much data we want
-	// These two could be collapsed into a single one.
-	pio_sm_put_blocking(pio, sm, 0);
-	pio_sm_put_blocking(pio, sm, buffer.size() - 1);
+	sendHeader(pio, sm, 0, buffer.size() - 1);
 	auto t3 = getTicks();
-	readTicks = /*t1-t0;*/ +t3 - t2;
+	readTicks = t1-t0 +t3 - t2;
 	co_return temperature;
 }
 

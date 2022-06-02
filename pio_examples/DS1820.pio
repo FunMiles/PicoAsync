@@ -2,7 +2,7 @@
 .wrap_target
 again:
   pull block
-  mov x, osr
+  out x, 16           ; Get lower 16 bits of header. 0 for read, delay for write
   jmp !x, read
 write:
   set pindirs, 1
@@ -11,8 +11,7 @@ loop1:
   jmp x--,loop1       ; Delay based on first data
   set pindirs, 0 [31] ; Set to input
   wait 1 pin 0 [31]   ; Wait for input pin 0 to be 1, ack from thermometer + delay
-  pull block          ; Get the amount of data to write
-  mov x, osr
+  out x, 16           ; Get the amount of data to write
 bytes1:
   pull block          ; Get the data
   set y, 7
@@ -26,8 +25,7 @@ bit1:
   set pindirs, 0 [31] ; Set to input for 32 cycles
   jmp again           ; Return to get the  next command
 read:
-  pull block          ; Get number of bytes to read from FIFO
-  mov x, osr          ; Put that number in x
+  out x, 16           ; Get number of bytes to read 16 upper bits of header.
 bytes2:
   set y, 7            ; Counter to read 8 bits total
 bit2:
