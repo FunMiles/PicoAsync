@@ -73,4 +73,6 @@ the last read and not the current one. Suspending the task until it is available
 should be implemented next.
 
 ## Notes and Credits
-The code for pio_examples/DS1820 is based
+The code for pio_examples/DS1820 is based on code for
+[A 1-Wire PIO Program](https://www.i-programmer.info/programming/hardware/14527-the-pico-in-c-a-1-wire-pio-program.html).
+The DMA version modifies the pio code to be more efficient.
