@@ -124,8 +124,11 @@ getTemperature_DMA(PIO pio, uint sm)
 
 	// TODO Make the the three writing a single asynchronous one.
 	// As is this takes almost a millisecond.
+	// Alternatively change the handling. Overall this uses 6 blocking put to FIFO
+	// Each only has 1 byte. The write takes 4 and can collapse to 2
 	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
 	// Tell the PIO code we want to read and how much data we want
+	// These two could be collapsed into a single one.
 	pio_sm_put_blocking(pio, sm, 0);
 	pio_sm_put_blocking(pio, sm, buffer.size() - 1);
 	auto t3 = getTicks();
@@ -166,6 +169,8 @@ DS18Initalize(PIO pio, int gpio)
 	sm_config_set_set_pins(&c, gpio, 1);
 	sm_config_set_out_pins(&c, gpio, 1);
 	sm_config_set_in_pins(&c, gpio);
+	// Set the shifting to the right as we receive LSB to HSB order.
+	// Automatic shift of data to the output FIFO after 8 bits have been shifted in.
 	sm_config_set_in_shift(&c, true, true, 8);
 	pio_sm_init(pio0, sm, offset, &c);
 	pio_sm_set_enabled(pio0, sm, true);
