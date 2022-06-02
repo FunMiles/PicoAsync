@@ -14,9 +14,14 @@
 
 #include "hardware/structs/systick.h"
 
+#include "DMA.h"
+
 using namespace std::chrono_literals;
 
 using namespace std;
+
+const uint led_pin = 25;
+const uint button_pin = 16;
 
 uint tickWrap = 0;
 
@@ -60,7 +65,7 @@ crc8(span<uint8_t> data)
 }
 uint32_t writeTicks;
 void
-writeBytes(PIO pio, uint sm, span<uint8_t> bytes)
+writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 {
 	auto t0 = getTicks();
 	auto len = bytes.size();
@@ -86,24 +91,70 @@ readBytes(PIO pio, uint sm, span<uint8_t> bytes)
 }
 
 task<float>
+getTemperature_DMA(PIO pio, uint sm)
+{
+	static bool               first = true;
+	static array<uint32_t, 9> buffer;
+
+	if (first) {
+		initInputDMA(pio, sm, buffer);
+		first = false;
+	}
+	float temperature = -1.0;
+	if (is_triggered) {
+		array<uint8_t, 9> bytes;
+
+		for (int i = 0; i < bytes.size(); i++) {
+			bytes[i] = buffer[i] >> 24;
+		}
+		uint8_t crc = crc8(bytes);
+		if (crc == 0) {
+			int     t1 = bytes[0];
+			int     t2 = bytes[1];
+			int16_t temp1 = (t2 << 8 | t1);
+			temperature = (float)temp1 / 16;
+		}
+	}
+	auto t0 = getTicks();
+	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0x44}));
+	auto t1 = getTicks();
+	co_await events::sleep(1000ms);
+	auto t2 = getTicks();
+	triggerDMAReceive(buffer);
+
+	// TODO Make the the three writing a single asynchronous one.
+	// As is this takes almost a millisecond.
+	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
+	// Tell the PIO code we want to read and how much data we want
+	pio_sm_put_blocking(pio, sm, 0);
+	pio_sm_put_blocking(pio, sm, buffer.size() - 1);
+	auto t3 = getTicks();
+	readTicks = /*t1-t0;*/ +t3 - t2;
+	co_return temperature;
+}
+
+task<float>
 getTemperature(PIO pio, uint sm)
 {
+	array<uint8_t, 9> buffer;
+
 	uint8_t w1[2] = {0xCC, 0x44};
 	writeBytes(pio, sm, w1);
 	co_await events::sleep(1000ms);
 	uint8_t w2[2] = {0xCC, 0xBE};
 	writeBytes(pio, sm, w2);
-	array<uint8_t, 9> data;
-	readBytes(pio, sm, data);
-	uint8_t crc = crc8(data);
+	readBytes(pio, sm, buffer);
+	uint8_t crc = crc8(buffer);
 	if (crc != 0)
 		co_return -2000.0f;
-	int            t1 = data[0];
-	int            t2 = data[1];
-	int16_t        temp1 = (t2 << 8 | t1);
-	volatile float temp = (float)temp1 / 16;
+	int     t1 = buffer[0];
+	int     t2 = buffer[1];
+	int16_t temp1 = (t2 << 8 | t1);
+	float   temp = (float)temp1 / 16;
+
 	co_return temp;
 }
+
 uint
 DS18Initalize(PIO pio, int gpio)
 {
@@ -125,18 +176,17 @@ task<>
 print_temp()
 {
 	uint sm = DS18Initalize(pio0, 2);
-	for (;;) {
+
+	for (bool normal = true;; normal = !normal) {
 		float t;
 		do {
-			t = co_await getTemperature(pio0, sm);
+			co_await events::sleep(1s);
+			t = co_await getTemperature_DMA(pio0, sm);
 		} while (t < -999);
 		printf("temperature %f\r\n", t);
 		co_await events::sleep(500ms);
 	};
 }
-
-const uint led_pin = 25;
-const uint button_pin = 16;
 /// Task blinking the LED twice per second.
 task<>
 blink()
