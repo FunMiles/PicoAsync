@@ -22,10 +22,10 @@ task<> blink(int pin) {
 ```
 while a task doing a periodic printing every 3 seconds would be:
 ```cpp
-task<> report() {
+task<> report(int num_seconds) {
     auto t0 = co_await sleep(0s);
     while(true) {
-        auto t = co_await sleep(3s);
+        auto t = co_await sleep(num_seconds * 1s);
         std::cout << "Time " << 1e-6*(t-t0) << std::endl;
     }
 }
@@ -41,7 +41,7 @@ int main()
   stdio_init_all();
 
   // Start the main loop with two tasks.
-  loop_control.loop(blink(led_pin), report());
+  loop_control.loop(blink(led_pin), report(3));
 }
 ```
 
@@ -68,6 +68,29 @@ task<> blink(int pin) {
     }
 }
 ```
+
+## Multi-core
+
+With the asynchronous library, it is easy to start tasks on both cores.
+```cpp
+int main()
+{
+	gpio_init(led_pin);
+	gpio_set_dir(led_pin, GPIO_OUT);
+	stdio_init_all();
+  
+  	multicore_launch_core1( []() {
+		// Start the loop with one task on core 1.
+		core_loop().loop(report(7));
+	});
+	// Start the main loop on core 0 with two tasks.
+	loop_control.loop(blink(led_pin), report(3));
+}
+```
+Tasks get suspended and restarted on the core where they were first started.
+In the future, a mechanism for moving a task from one core to the other will be added.
+Intercore communication can currently be handled using direct calls to the sdk.
+In the future asynchronous awaitable objects will be provided by this library.
 
 ## Examples
 

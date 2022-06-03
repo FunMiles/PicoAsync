@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 20)
 pico_sdk_init()
 
 add_subdirectory(Async)
+add_subdirectory(examples)
 
 add_executable(AsyncPico main.cpp)
 
