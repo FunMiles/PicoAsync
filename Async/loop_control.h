@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <utility>
 
+#include <hardware/sync.h>
 #include <hardware/timer.h>
 
 template <typename T>
@@ -122,3 +123,7 @@ private:
 inline std::array<loop_control,2> core_loops;
 /// \brief Core 0 loop object.
 inline loop_control &loop_control = core_loops[0];
+/// \brief Get the loop_control of the core executing this function.
+inline auto &core_loop() {
+	return core_loops[ get_core_num() ];
+}

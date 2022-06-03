@@ -97,7 +97,7 @@ struct dma_awaitable {
 	void await_suspend(std::coroutine_handle<> h) {
 		// Schedule resuming the caller after the given duration.
 		this->h = h;
-		loop_control.add_constant_processor(processor, this);
+		core_loop().add_constant_processor(processor, this);
 	}
 	auto await_resume() {
 		return temperature;
@@ -121,8 +121,8 @@ struct dma_awaitable {
 				int16_t temp1 = (t2 << 8 | t1);
 				awaitable->temperature = (float)temp1 / 16;
 			}
-			loop_control.schedule(awaitable->h, 0);
-			loop_control.remove_constant_processor(&processor, ptr);
+			core_loop().schedule(awaitable->h, 0);
+			core_loop().remove_constant_processor(&processor, ptr);
 		}
 	}
 };

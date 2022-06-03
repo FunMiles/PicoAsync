@@ -30,7 +30,7 @@ struct time_awaitable {
   bool await_ready() { return false; }
   void await_suspend(std::coroutine_handle<> h) {
     // Schedule resuming the caller after the given duration.
-    loop_control.schedule(h, resume_time);
+	core_loop().schedule(h, resume_time);
   }
   auto await_resume() { return resume_time; }
   uint64_t resume_time;
@@ -88,7 +88,7 @@ private:
     if (listener->h) {
       listener->event = event;
       std::cout << "Scheduling the thing" << std::endl;
-      loop_control.schedule(listener->h, 0);
+	  core_loop().schedule(listener->h, 0);
     }
     listener->h = nullptr;
   }
