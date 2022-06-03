@@ -80,16 +80,11 @@ an edge up or down.
     - prints a timer every 3 seconds
     - count the number of time the system ticker wraps around.
 - pio_examples/DS1820_DMA - 4 tasks as in the previous example but much
-more efficient via the use of DMA/interrupt for the PIO's input FIFO.
+more efficient via the use of DMA/interrupt for the PIO's input FIFO. Plus one task
+waiting for and printing any character input from the USB.
 
 The most interesting example is the last one. It demonstrates
 the use of the pico's PIO system and how to use DMA for asynchronous input.
-
-### TODO
-
-The current temperature reading the DS1820_DMA returns the result of
-the last read and not the current one. Suspending the task until it is available
-should be implemented next.
 
 ## Notes and Credits
 The code for pio_examples/DS1820 is based on code for

@@ -2,6 +2,7 @@
 // Created by Michel Lesoinne on 6/1/22.
 //
 #include <array>
+#include <device/usbd.h>
 #include <span>
 #include <stdio.h>
 
@@ -88,11 +89,49 @@ writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 
 uint32_t readTicks;
 
+namespace {
+static array<uint32_t, 9> buffer;
+
+struct dma_awaitable {
+	bool await_ready() { return false; }
+	void await_suspend(std::coroutine_handle<> h) {
+		// Schedule resuming the caller after the given duration.
+		this->h = h;
+		loop_control.add_constant_processor(processor, this);
+	}
+	auto await_resume() {
+		return temperature;
+	}
+	std::coroutine_handle<> h;
+	float temperature;
+
+	static void processor(void *ptr) {
+		if (is_triggered) {
+			auto awaitable = reinterpret_cast<dma_awaitable *>(ptr);
+			awaitable->temperature = -1000.0f;
+			array<uint8_t, 9> bytes;
+
+			for (int i = 0; i < bytes.size(); i++) {
+				bytes[i] = buffer[i] >> 24;
+			}
+			uint8_t crc = crc8(bytes);
+			if (crc == 0) {
+				int     t1 = bytes[0];
+				int     t2 = bytes[1];
+				int16_t temp1 = (t2 << 8 | t1);
+				awaitable->temperature = (float)temp1 / 16;
+			}
+			loop_control.schedule(awaitable->h, 0);
+			loop_control.remove_constant_processor(&processor, ptr);
+		}
+	}
+};
+}
+
 task<float>
 getTemperature_DMA(PIO pio, uint sm)
 {
 	static bool               first = true;
-	static array<uint32_t, 9> buffer;
 
 	if (first) {
 		initInputDMA(pio, sm, buffer);
@@ -125,6 +164,7 @@ getTemperature_DMA(PIO pio, uint sm)
 	sendHeader(pio, sm, 0, buffer.size() - 1);
 	auto t3 = getTicks();
 	readTicks = t1-t0 +t3 - t2;
+	temperature = co_await dma_awaitable{};
 	co_return temperature;
 }
 
@@ -147,12 +187,18 @@ DS18Initalize(PIO pio, int gpio)
 	return sm;
 }
 
+// To be able to co_await a duration. E.g. co_await 3ms;
+using events::operator co_await;
+
+/// \brief Continuously print the temperature.
 task<>
 print_temp()
 {
 	uint sm = DS18Initalize(pio0, 2);
 
-	for (bool normal = true;; normal = !normal) {
+	co_await 2s;
+	std::cout << "Starting the temperature loop." << std::endl;
+	while(true) {
 		float t;
 		do {
 			co_await events::sleep(1s);
@@ -162,7 +208,7 @@ print_temp()
 		co_await events::sleep(500ms);
 	};
 }
-/// Task blinking the LED twice per second.
+/// \brief Create a task blinking the LED twice per second.
 task<>
 blink()
 {
@@ -170,14 +216,14 @@ blink()
 	gpio_set_dir(led_pin, GPIO_OUT);
 
 	for (int i = 0; true; ++i) {
-		co_await events::sleep(250ms);
-		gpio_put(led_pin, 1);
-		co_await events::sleep(250ms);
-		gpio_put(led_pin, 0);
+		co_await 250ms;
+		gpio_put(led_pin, true);
+		co_await 250ms;
+		gpio_put(led_pin, false);
 	}
 }
 
-/// Task printing every 3 seconds.
+/// \brief Create a task printing time and timings every 3 seconds.
 task<>
 report()
 {
@@ -185,16 +231,22 @@ report()
 	// around of the counter.
 	systick_hw->csr = 0x5;
 	systick_hw->rvr = 0x00FFFFFF;
-	auto t0 = co_await events::sleep(0s);
-	auto st0 = tickWrap - systick_hw->cvr;
+	auto t0 = co_await 0s;
+	auto st0 = getTicks();
 	for (int i = 0; true; ++i) {
-		auto t = co_await events::sleep(3s);
-		auto stA = systick_hw->cvr;
-		auto st1 = tickWrap - systick_hw->cvr;
-		auto stB = systick_hw->cvr;
+		auto t = co_await 3s;
+		auto st1 = getTicks();
 		std::cout << "Time " << 1e-6 * (t - t0) << " systick " << (st1 - st0) << " write ticks "
 		          << writeTicks << " read ticks " << readTicks << std::endl;
 		st0 = st1;
+	}
+}
+
+task<>
+input() {
+	while(true) {
+		auto c = co_await events::one_char();
+		std::cout << "Input: " << c << std::endl;
 	}
 }
 
@@ -202,7 +254,9 @@ int
 main()
 {
 	stdio_init_all();
-	// Start the main loop with two tasks.
-	loop_control.loop(print_temp(), blink(), report(), wrapTick());
+	// Handle the USB input.
+	loop_control.add_constant_processor(tud_task);
+	// Start the main loop with 5 tasks.
+	loop_control.loop(print_temp(), blink(), report(), input(), wrapTick());
 	return 0;
 }
