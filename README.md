@@ -50,6 +50,25 @@ to embedded programming easy, thanks to the expressive syntax
 and the avoidance of what is sometime affectionately referred to
 as callback hell.
 
+## Syntactic Sugar
+
+To make any sleeping even shorter to write - and maybe easier to read, use
+an import:
+
+```cpp
+// Make it possible to await a duration
+using events::operator co_await;
+
+task<> blink(int pin) {
+    while (true) {
+        co_await 250ms;
+        gpio_put(led_pin, 1);
+        co_await 250ms;
+        gpio_put(led_pin, 0);	
+    }
+}
+```
+
 ## Examples
 
 There are 3 examples:

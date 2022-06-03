@@ -10,12 +10,15 @@
 #include <iostream>
 
 #include "loop_control.h"
+#include "task.h"
 
 /** The goal of objects in this file is to provide awaitable objects
  * for hardware, or inter-task communication events.
  * For example:
  * ```cpp
- *      co_await sleep(100_ms);
+ *      co_await 100ms; // sleep for 100ms
+ *      co_await core_1; // Switch execution to core 1
+ *      co_await core_0; // Switch execution to core 0
  * ```
  */
 
@@ -37,6 +40,13 @@ struct time_awaitable {
 
 auto sleep(std::chrono::duration<uint64_t, std::micro> duration) {
   return details::time_awaitable{time_us_64() + duration.count()};
+}
+
+/// \brief Enables to co_await a duration.
+template <typename T, typename D>
+auto operator co_await(std::chrono::duration<T,D> duration)
+{
+	return sleep(duration);
 }
 
 auto wait_until(uint64_t when) {
@@ -62,7 +72,6 @@ public:
         // Schedule resuming the caller after the given duration.
         std::cout << "Setting up to wait" << std::endl;
         listener->h = h;
-//        loop_control.schedule(h, 0);
       }
       auto await_resume() { return listener->event; }
       pin_listener *listener;
@@ -89,6 +98,16 @@ template <uint pin>
 inline
 pin_listener<pin> *pin_listener<pin>::listener = nullptr;
 
-/// TODO Create a USB input event.
-
+/// \brief Task to get one character from the USB.
+/// \details For it to work, the loop controller has to have a constant call to tud_task.
+/// Otherwise most characters will be missed.
+task<char> one_char() {
+	using namespace std::chrono_literals;
+	while(true) {
+		auto c = getchar_timeout_us(0);
+		if (c >= 0)
+			co_return static_cast<char>(c);
+		co_await sleep(10us);
+	}
+}
 } // namespace events
