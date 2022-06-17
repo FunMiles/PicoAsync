@@ -9,12 +9,12 @@ using namespace std::chrono_literals;
 const uint led_pin = 25;
 const uint button_pin = 16;
 /// Task blinking the LED twice per second.
-task<> blink() {
+task<> blink(uint pin, uint delay) {
   for (int i = 0; true; ++i) {
-    co_await events::sleep(250ms);
-    gpio_put(led_pin, 1);
-    co_await events::sleep(250ms);
-    gpio_put(led_pin, 0);
+    co_await events::sleep(delay * 1ms);
+    gpio_put(pin, 1);
+    co_await events::sleep(delay * 1ms);
+    gpio_put(pin, 0);
   }
 }
 
@@ -50,5 +50,5 @@ int main() {
 	  core_loop().loop(pin(15));
   });
   // Start the main loop with two tasks.
-  loop_control.loop(blink(), report(), pin(button_pin));
+  loop_control.loop(blink(led_pin, 250), report(), pin(button_pin));
 }
