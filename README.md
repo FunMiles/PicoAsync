@@ -90,7 +90,7 @@ int main()
 Tasks get suspended and restarted on the core where they were first started.
 In the future, a mechanism for moving a task from one core to the other will be added.
 Intercore communication can currently be handled using direct calls to the sdk.
-In the future asynchronous awaitable objects will be provided by this library.
+In the future, asynchronous awaitable objects will be provided by this library.
 
 ## Examples
 

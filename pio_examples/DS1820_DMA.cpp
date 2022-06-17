@@ -242,6 +242,7 @@ report()
 	}
 }
 
+/// \brief Task checking for USB input character, printing each one on std::cout.
 task<>
 input() {
 	while(true) {

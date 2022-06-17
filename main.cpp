@@ -25,18 +25,14 @@ task<> report() {
   }
 }
 
-task<> pin() {
-  events::pin_listener<button_pin> pinListener;
-  for(int i = 0; true; ++i) {
-    auto event = co_await pinListener.next();
-    std::cout << "Event is " << event << std::endl;
-  }
-
-}
-
-void pinChange(uint pin, uint32_t event)
+task<>
+pin(uint bp, auto... button_pins)
 {
-  std::cout << "Pin " << pin << " had event " << event << std::endl;
+	events::pin_listener pinListener(bp, static_cast<uint>(button_pins)...);
+	for (int i = 0; true; ++i) {
+		auto event = co_await pinListener.next();
+		std::cout << "Event is " << event.second << " for pin " << event.first << std::endl;
+	}
 }
 
 int main() {
@@ -47,5 +43,5 @@ int main() {
   stdio_init_all();
 
   // Start the main loop with two tasks.
-  loop_control.loop(blink(), report(), pin());
+  loop_control.loop(blink(), report(), pin(button_pin, 15));
 }

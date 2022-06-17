@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <utility>
 
+#include <atomic>
 #include <hardware/sync.h>
 #include <hardware/timer.h>
 
@@ -25,7 +26,11 @@ class loop_control {
 	};
 
 public:
-	loop_control(uint num_tasks = 16) { scheduled.reserve(num_tasks); }
+	loop_control(uint num_tasks = 16) {
+		scheduled.reserve(num_tasks);
+		for (auto &fi : fromInterrupts)
+			fi.reserve(16);
+	}
 
 	/** \brief Schedule a coroutine for future restart.
 	 * \details This routine should only be called on the same core and from
@@ -37,6 +42,18 @@ public:
 	{
 		scheduled.push_back({when, handle});
 		std::push_heap(scheduled.begin(), scheduled.end(), cmp);
+	}
+
+	/** \brief Called by interrupts to insert actions to be taken.
+	 *
+	 * @param handle
+	 */
+	void scheduleInterruptAction(std::coroutine_handle<> handle)
+	{
+		auto &inactiveVector = fromInterrupts[1-activeIRQVector];
+		inactiveVector.push_back(handle);
+		++IRQVectorStatus[1-activeIRQVector];
+		__mem_fence_release();
 	}
 
 	/** \brief Main loop of execution.
@@ -61,6 +78,17 @@ public:
 					(*p.with_arg)(p.arg);
 				else
 					(*p.without_arg)();
+			// Run the interrupt-added actions.
+			if (IRQVectorStatus[1-activeIRQVector]) {
+				activeIRQVector = 1-activeIRQVector;
+				std::atomic_thread_fence(std::memory_order_release);
+				auto &activeVector = fromInterrupts[activeIRQVector];
+				std::cout << activeVector.size() << " interrupt added handles." << std::endl;
+				for (auto &h : activeVector)
+					h.resume();
+				IRQVectorStatus[activeIRQVector] = 0;
+				activeVector.clear();
+			}
 		}
 	}
 
@@ -107,6 +135,10 @@ private:
 	/// \brief List of processors to run at each loop iteration.
 	/// \details Typically IRQ generated input processors.
 	std::vector<Processor> constant_processors;
+
+	int activeIRQVector = 0;
+	volatile int IRQVectorStatus[2] = {0,0};
+	std::vector<std::coroutine_handle<>> fromInterrupts[2];
 
 	template <typename T0, typename... R>
 	void start(T0 &t0, R &...r)
