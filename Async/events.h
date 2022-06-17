@@ -89,7 +89,7 @@ public:
 			gpio_set_irq_enabled_with_callback(pin_index, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true,
 			                                   pinChange);
 
-			listener[pin_index] = this;
+			perCoreListeners[get_core_num()][pin_index] = this;
 		}
 	}
 	auto next()
@@ -110,7 +110,7 @@ public:
 
 private:
 	static constexpr uint numPins = 32;
-	static inline pin_listener    *listener[numPins];
+	static inline pin_listener    *perCoreListeners[2][numPins];
 	std::coroutine_handle<> h;
 	uint                    pin;
 	uint32_t                event;
@@ -123,6 +123,7 @@ private:
 	 */
 	static void __not_in_flash_func(pinChange)(uint pin, uint32_t event)
 	{
+		auto &listener = perCoreListeners[get_core_num()];
 		if (listener[pin]->h) {
 			listener[pin]->pin = pin;
 			listener[pin]->event = event;

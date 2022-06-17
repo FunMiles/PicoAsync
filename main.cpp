@@ -1,6 +1,8 @@
 #include "Async/events.h"
 #include "Async/task.h"
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
+
 #include <iostream>
 
 using namespace std::chrono_literals;
@@ -31,7 +33,8 @@ pin(uint bp, auto... button_pins)
 	events::pin_listener pinListener(bp, static_cast<uint>(button_pins)...);
 	for (int i = 0; true; ++i) {
 		auto event = co_await pinListener.next();
-		std::cout << "Event is " << event.second << " for pin " << event.first << std::endl;
+		std::cout << "On core " << get_core_num()
+		    << ", event is " << event.second << " for pin " << event.first << std::endl;
 	}
 }
 
@@ -42,6 +45,10 @@ int main() {
 
   stdio_init_all();
 
+  multicore_launch_core1( []() {
+	  std::cout << "I am on core " << get_core_num() << std::endl;
+	  core_loop().loop(pin(15));
+  });
   // Start the main loop with two tasks.
-  loop_control.loop(blink(), report(), pin(button_pin, 15));
+  loop_control.loop(blink(), report(), pin(button_pin));
 }
