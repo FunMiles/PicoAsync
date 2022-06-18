@@ -13,6 +13,8 @@
 #include <hardware/sync.h>
 #include <hardware/timer.h>
 
+#include "task.h"
+
 template <typename T>
 concept Task = requires(T task) {
 	               {
@@ -30,6 +32,12 @@ public:
 		scheduled.reserve(num_tasks);
 		for (auto &fi : fromInterrupts)
 			fi.reserve(16);
+	}
+
+	/** \brief Start a new task. The task can terminate by calling co_return; . */
+	void start_task(task<> task, uint64_t when = 0)
+	{
+		schedule(task.get_handle(), when);
 	}
 
 	/** \brief Schedule a coroutine for future restart.
