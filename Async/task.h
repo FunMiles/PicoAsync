@@ -148,13 +148,16 @@ struct task<T, lazy>::task_promise : public promise_setter<T> {
 			coroutines::coroutine_handle<>
 			await_suspend(coroutines::coroutine_handle<task::task_promise> h) noexcept
 			{
-				return h.promise().continuation;
+				if constexpr (std::is_same_v<T, void>) {
+					auto continuation = h.promise().continuation;
+					h.destroy();
+					return continuation;
+				}
+				else
+					return h.promise().continuation;
 			}
 		};
-		if constexpr (std::is_same_v<T,void>)
-			return coroutines::suspend_never{};
-		else
-			return awaiter{};
+		return awaiter{};
 	}
 
 	void unhandled_exception() noexcept
