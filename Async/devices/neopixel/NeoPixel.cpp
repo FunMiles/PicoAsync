@@ -28,5 +28,5 @@ NeoPixel::show()
 	for (const auto &rgb: data) {
 		pio_sm_put_blocking(pio0, 0, packColor(rgb) << 8u);
 	}
-	co_return;// data.size();
+	co_return;
 }

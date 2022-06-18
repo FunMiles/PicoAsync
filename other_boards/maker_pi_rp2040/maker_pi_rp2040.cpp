@@ -8,6 +8,7 @@
 #include "pico/stdlib.h"
 
 #include "hardware/pio.h"
+#include "hardware/pwm.h"
 
 using namespace std::chrono_literals;
 using events::operator co_await;
@@ -41,14 +42,8 @@ neoPixel(uint pin)
 	const int stateMachine = 0;
 	NeoPixel np(pin, numLEDs, pio0, stateMachine);
 	int color = 1;
-	for (int i = 0; i < 10; ++i) {
-		co_await 1s;
-		std::cout << "Wait for it! " << i << std::endl;
-	}
 	while(true) {
-		co_await 1s;
 		np.clear();
-		std::cout << "Color " << color << std::endl;
 		switch (color % 3) {
 		case 0:
 			np.push_back({128,0,0});
@@ -56,10 +51,10 @@ neoPixel(uint pin)
 			break;
 		case 1:
 			np.push_back({0,128,0});
-			np.push_back({0,0,128});
+			np.push_back({128,64,0});
 			break;
 		case 2:
-			np.push_back({0,0,128});
+			np.push_back({128,64,0});
 			np.push_back({128,0,0});
 			break;
 		default:
@@ -67,10 +62,43 @@ neoPixel(uint pin)
 			np.push_back({0,128,0});
 			break;
 		}
-		std::cout << "Ready to show " << np.size() << " pixels." << std::endl;
 		co_await np.show();
+		co_await 1s;
 		++color;
-		std::cout <<"New color is " << color << std::endl;
+	}
+}
+
+task<>
+buttons() {
+	const uint buttonA = 20;
+	const uint buttonB = 21;
+	events::pin_listener pinListener(buttonA, buttonB);
+	while(true) {
+		auto [pin, event] = co_await pinListener.next();
+		std::cout << "Pin " << pin << " got event " << event << std::endl;
+	}
+}
+
+task<>
+servo(uint pin)
+{
+	gpio_set_function(pin, GPIO_FUNC_PWM);
+	// Find out which PWM slice is connected to GPIO pin
+	uint slice_num = pwm_gpio_to_slice_num(pin);
+	uint channel_num = pwm_gpio_to_channel(pin);
+	// Producing 50Hz
+	pwm_set_clkdiv_int_frac (slice_num,  38,3);
+	pwm_set_wrap(slice_num,65535);
+
+	pwm_set_gpio_level(pin, 65536/20);
+	// Set the PWM running
+	pwm_set_enabled(slice_num, true);
+	uint16_t level = 0;
+	while (true) {
+		co_await 20ms;
+		level += 100;
+		// Servos want a duty cycle between 5 and 10%
+		pwm_set_gpio_level(pin, 3270+level/20);
 	}
 }
 
@@ -79,5 +107,5 @@ main()
 {
 	stdio_init_all();
 	// Start the main loop with two tasks.
-	loop_control.loop(blink(led_pins, 250), neoPixel(18));
+	loop_control.loop(blink(led_pins, 250), neoPixel(18), servo(15), buttons());
 }
