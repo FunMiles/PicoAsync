@@ -24,3 +24,4 @@ pico_enable_stdio_usb(AsyncPico 1)
 pico_enable_stdio_uart(AsyncPico 0)
 
 add_subdirectory(pio_examples)
+add_subdirectory(other_boards)
