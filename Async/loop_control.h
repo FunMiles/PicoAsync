@@ -75,11 +75,14 @@ public:
 	{
 		start(tasks...);
 		while (run) {
-			auto min_time = scheduled.front();
-			if (min_time.first < time_us_64()) {
-				std::pop_heap(scheduled.begin(), scheduled.end(), cmp);
-				scheduled.pop_back();
-				min_time.second.resume();
+			if (!scheduled.empty())
+			{
+				auto min_time = scheduled.front();
+				if (min_time.first < time_us_64()) {
+					std::pop_heap(scheduled.begin(), scheduled.end(), cmp);
+					scheduled.pop_back();
+					min_time.second.resume();
+				}
 			}
 			for (auto p : constant_processors)
 				if (p.hasArgument)
@@ -91,9 +94,9 @@ public:
 				activeIRQVector = 1-activeIRQVector;
 				std::atomic_thread_fence(std::memory_order_release);
 				auto &activeVector = fromInterrupts[activeIRQVector];
-				std::cout << activeVector.size() << " interrupt added handles." << std::endl;
-				for (auto &h : activeVector)
+				for (auto &h : activeVector) {
 					h.resume();
+				}
 				IRQVectorStatus[activeIRQVector] = 0;
 				activeVector.clear();
 			}

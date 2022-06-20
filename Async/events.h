@@ -99,7 +99,6 @@ public:
 			void await_suspend(std::coroutine_handle<> h)
 			{
 				// Schedule resuming the caller after the given duration.
-				std::cout << "Setting up to wait" << std::endl;
 				listener->h = h;
 			}
 			auto          await_resume() { return std::pair{listener->pin, listener->event}; }
@@ -129,10 +128,10 @@ private:
 			listener[pin]->event = event;
 			uint32_t save = save_and_disable_interrupts();
 			core_loop().scheduleInterruptAction(listener[pin]->h);
+			listener[pin]->h = nullptr;
 			__mem_fence_release();
 			restore_interrupts(save);
 		}
-		listener[pin]->h = nullptr;
 	}
 };
 
