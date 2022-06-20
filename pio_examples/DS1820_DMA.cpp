@@ -66,13 +66,11 @@ crc8(span<uint8_t> data)
 }
 uint32_t writeTicks;
 
-
 void
-sendHeader(PIO pio, uint sm, uint16_t first, uint16_t second)
+sendHeader(PIO pio, uint sm, uint16_t first, uint16_t num_bytes)
 {
-	uint32_t header = static_cast<uint32_t>(first) |
-	                  (static_cast<uint32_t>(second) << 16u);
-	pio_sm_put_blocking(pio, sm, header);
+	pio_sm_put_blocking(pio, sm, first);
+	pio_sm_put_blocking(pio, sm, num_bytes-1);
 }
 
 void
@@ -80,9 +78,10 @@ writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 {
 	auto t0 = getTicks();
 	auto len = bytes.size();
-	sendHeader(pio, sm, 250, len-1);
-	for (int i = 0; i < len; i++) {
-		pio_sm_put_blocking(pio, sm, bytes[i]);
+	sendHeader(pio, sm, 250, len);
+	for (int i = 0; i < len; i += 2) {
+		uint16_t v = bytes[i] | (bytes[i + 1] << 8u);
+		pio_sm_put_blocking(pio, sm, v);
 	}
 	writeTicks = getTicks() - t0;
 }
@@ -161,7 +160,7 @@ getTemperature_DMA(PIO pio, uint sm)
 
 	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
 	// Tell the PIO code we want to read and how much data we want
-	sendHeader(pio, sm, 0, buffer.size() - 1);
+	sendHeader(pio, sm, 0, buffer.size());
 	auto t3 = getTicks();
 	readTicks = t1-t0 +t3 - t2;
 	temperature = co_await dma_awaitable{};
@@ -178,6 +177,7 @@ DS18Initalize(PIO pio, int gpio)
 	sm_config_set_clkdiv_int_frac(&c, 255, 0);
 	sm_config_set_set_pins(&c, gpio, 1);
 	sm_config_set_out_pins(&c, gpio, 1);
+	sm_config_set_out_shift(&c, true, true, 16);
 	sm_config_set_in_pins(&c, gpio);
 	// Set the shifting to the right as we receive LSB to HSB order.
 	// Automatic shift of data to the output FIFO after 8 bits have been shifted in.

@@ -1,7 +1,6 @@
 .program DS1820
 .wrap_target
 again:
-  pull block
   out x, 16           ; Get lower 16 bits of header. 0 for read, delay for write
   jmp !x, read
 write:
@@ -13,7 +12,6 @@ loop1:
   wait 1 pin 0 [31]   ; Wait for input pin 0 to be 1, ack from thermometer + delay
   out x, 16           ; Get the amount of data to write
 bytes1:
-  pull block          ; Get the data
   set y, 7
   set pindirs, 1      ; Set to output
 bit1:
