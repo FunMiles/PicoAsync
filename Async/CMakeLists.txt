@@ -7,4 +7,5 @@ target_include_directories(Async INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOU
 target_link_libraries(Async INTERFACE neopixel)
 # The library require C++20 as it uses coroutines.
 #target_compile_features(Async INTERFACE cxx_std_20)
+add_subdirectory(hw)
 add_subdirectory(devices)

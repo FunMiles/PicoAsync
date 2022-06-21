@@ -56,11 +56,12 @@ public:
 	 *
 	 * @param handle
 	 */
+	inline
 	void scheduleInterruptAction(std::coroutine_handle<> handle)
 	{
 		auto &inactiveVector = fromInterrupts[1-activeIRQVector];
 		inactiveVector.push_back(handle);
-		++IRQVectorStatus[1-activeIRQVector];
+		IRQVectorStatus[1-activeIRQVector] = IRQVectorStatus[1-activeIRQVector] + 1;
 		__mem_fence_release();
 	}
 
