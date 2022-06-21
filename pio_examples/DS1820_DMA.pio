@@ -9,23 +9,23 @@ write:
   set pins, 0
 loop1:
   jmp x--,loop1       ; Delay based on first data
-  set pindirs, 0 [31] ; Set to input
-  wait 1 pin 0 [31]   ; Wait for input pin 0 to be 1, ack from thermometer + delay
+  set pindirs, 0 [15] ; Set to input
+  wait 1 pin 0 [15]   ; Wait for input pin 0 to be 1, ack from thermometer + delay
 bytes1:
   set pindirs, 1      ; Set to output
 bit1:
-  set pins, 0 [1]     ; Set pin to 0 for 2 cycles
-  out pins, 1 [31]    ; Output 1 bit and hold for 32 cycles total.
-  set pins, 1 [20]    ; Set pin to 1 for 21 cycles
-  jmp y--,bit1   [1]     ; Go to the next bit if any.
-  set pindirs, 0 [31] ; Set to input for 32 cycles
+  set pins, 0 [0]     ; Set pin to 0 for 2 cycles
+  out pins, 1 [15]    ; Output 1 bit and hold for 32 cycles total.
+  set pins, 1 [10]    ; Set pin to 1 for 21 cycles
+  jmp y--,bit1   [0]     ; Go to the next bit if any.
+  set pindirs, 0 [15] ; Set to input for 32 cycles
   jmp again           ; Return to get the  next command
 read:
 bytes2:
 bit2:
   set pindirs, 1      ; Set pin to output mode
-  set pins, 0 [1]     ; Set pin to 0 for 2 cycles bit sync
-  set pindirs, 0 [5]  ; Set pin to input and wait 6 cycles total
-  in pins,1 [10]      ; Get the data in the shift register and wait 11 cycles total
-  jmp y--,bit2    [1]    ; Next bit
+  set pins, 0 [0]     ; Set pin to 0 for 2 cycles bit sync
+  set pindirs, 0 [2]  ; Set pin to input and wait 6 cycles total
+  in pins,1 [5]      ; Get the data in the shift register and wait 11 cycles total
+  jmp y--,bit2    [0]    ; Next bit
 .wrap

@@ -174,7 +174,7 @@ DS18Initalize(PIO pio, int gpio)
 	uint sm = pio_claim_unused_sm(pio, true);
 	pio_gpio_init(pio, gpio);
 	pio_sm_config c = DS1820_program_get_default_config(offset);
-	sm_config_set_clkdiv_int_frac(&c, 255, 0);
+	sm_config_set_clkdiv_int_frac(&c, 511, 0);
 	sm_config_set_set_pins(&c, gpio, 1);
 	sm_config_set_out_pins(&c, gpio, 1);
 	sm_config_set_out_shift(&c, true, true, 16);
