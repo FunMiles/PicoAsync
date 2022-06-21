@@ -70,7 +70,7 @@ void
 sendHeader(PIO pio, uint sm, uint16_t first, uint16_t num_bytes)
 {
 	pio_sm_put_blocking(pio, sm, first);
-	pio_sm_put_blocking(pio, sm, num_bytes-1);
+	pio_sm_put_blocking(pio, sm, 8*num_bytes-1);
 }
 
 void
