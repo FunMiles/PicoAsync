@@ -15,7 +15,7 @@
 
 #include "hardware/structs/systick.h"
 
-#include "DMA.h"
+#include "Async/hw/DMA.h"
 
 using namespace std::chrono_literals;
 
@@ -91,40 +91,6 @@ uint32_t readTicks;
 namespace {
 static array<uint32_t, 9> buffer;
 
-struct dma_awaitable {
-	bool await_ready() { return false; }
-	void await_suspend(std::coroutine_handle<> h) {
-		// Schedule resuming the caller after the given duration.
-		this->h = h;
-		core_loop().add_constant_processor(processor, this);
-	}
-	auto await_resume() {
-		return temperature;
-	}
-	std::coroutine_handle<> h;
-	float temperature;
-
-	static void processor(void *ptr) {
-		if (is_triggered) {
-			auto awaitable = reinterpret_cast<dma_awaitable *>(ptr);
-			awaitable->temperature = -1000.0f;
-			array<uint8_t, 9> bytes;
-
-			for (int i = 0; i < bytes.size(); i++) {
-				bytes[i] = buffer[i] >> 24;
-			}
-			uint8_t crc = crc8(bytes);
-			if (crc == 0) {
-				int     t1 = bytes[0];
-				int     t2 = bytes[1];
-				int16_t temp1 = (t2 << 8 | t1);
-				awaitable->temperature = (float)temp1 / 16;
-			}
-			core_loop().schedule(awaitable->h, 0);
-			core_loop().remove_constant_processor(&processor, ptr);
-		}
-	}
-};
 }
 
 task<float>
@@ -132,38 +98,39 @@ getTemperature_DMA(PIO pio, uint sm)
 {
 	static bool               first = true;
 
-	if (first) {
-		initInputDMA(pio, sm, buffer);
-		first = false;
-	}
-	float temperature = -1.0;
-	if (is_triggered) {
-		array<uint8_t, 9> bytes;
-
-		for (int i = 0; i < bytes.size(); i++) {
-			bytes[i] = buffer[i] >> 24;
-		}
-		uint8_t crc = crc8(bytes);
-		if (crc == 0) {
-			int     t1 = bytes[0];
-			int     t2 = bytes[1];
-			int16_t temp1 = (t2 << 8 | t1);
-			temperature = (float)temp1 / 16;
-		}
-	}
+	static async::hw::DMAChannel dmaChannel({
+	    .transferSize = DMA_SIZE_32,
+	    .dreq =  pio_get_dreq(pio, sm, false),
+	    .write_addr = buffer.data(),
+	    .read_addr = &pio->rxf[sm],
+	    .transfer_count = buffer.size()
+	});
 	auto t0 = getTicks();
 	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0x44}));
 	auto t1 = getTicks();
 	co_await events::sleep(1000ms);
 	auto t2 = getTicks();
-	triggerDMAReceive(buffer);
 
 	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
+	auto awaitable = dmaChannel.receive(std::span<uint32_t>{buffer});
 	// Tell the PIO code we want to read and how much data we want
 	sendHeader(pio, sm, 0, buffer.size());
 	auto t3 = getTicks();
 	readTicks = t1-t0 +t3 - t2;
-	temperature = co_await dma_awaitable{};
+	auto b = co_await awaitable;
+	float temperature = - 1000.0f;
+	array<uint8_t, 9> bytes;
+
+	for (int i = 0; i < bytes.size(); i++) {
+		bytes[i] = buffer[i] >> 24;
+	}
+	uint8_t crc = crc8(bytes);
+	if (crc == 0) {
+		int     t1 = bytes[0];
+		int     t2 = bytes[1];
+		int16_t temp1 = (t2 << 8 | t1);
+		temperature = (float)temp1 / 16;
+	}
 	co_return temperature;
 }
 
@@ -204,8 +171,7 @@ print_temp()
 			co_await events::sleep(1s);
 			t = co_await getTemperature_DMA(pio0, sm);
 		} while (t < -999);
-		printf("temperature %f\r\n", t);
-		co_await events::sleep(500ms);
+		std::cout << "Temperature: " << t << std::endl;
 	};
 }
 /// \brief Create a task blinking the LED twice per second.
