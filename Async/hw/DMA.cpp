@@ -27,9 +27,7 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 	// Pass it on for processing
 	auto work = [](decltype(status) st) -> task<> {
 		auto channel = std::countr_zero(st);
-//		std::cout << "Got something from channel " << channel << std::endl;
 		auto &target = DMAChannel::channelTargets[get_core_num()][channel];
-//		std::cout << "I have " << target.handle.address() << std::endl;
 		// It is possible that the DMA transfer completed before it is awaited.
 		// So there may not be yet an awaiting coroutine handle.
 		if (target.handle) {
@@ -50,7 +48,7 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 	restore_interrupts(save);
 }
 
-DMAChannel::DMAChannel(const DMAChannelConfig &config)
+DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 {
 	static int done =
 	    [] {
@@ -61,24 +59,51 @@ DMAChannel::DMAChannel(const DMAChannelConfig &config)
 	    }();
 	// Allocate a DMA channel panic if none available.
 	channel = dma_claim_unused_channel(true);
-	dma_channel_config channel_config = dma_channel_get_default_config(channel);
-	// Transfer 32 bits each time
-	channel_config_set_transfer_data_size(&channel_config, config.transferSize);
+	dma_channel_config &channel_config = readChannelConfig;
+	channel_config = dma_channel_get_default_config(channel);
+	// Set the transfer size
+	channel_config_set_transfer_data_size(&channel_config, readConfig.transferSize);
 	// Read from the same address (the PIO SM FX FIFO)
 	channel_config_set_read_increment(&channel_config, false);
 	// Increment write address (a different word in the buffer each time)
 	channel_config_set_write_increment(&channel_config, true);
 	// Transfer based on the given transfer request signal
-	channel_config_set_dreq(&channel_config, config.dreq);
+	channel_config_set_dreq(&channel_config, readConfig.dreq);
 	// Setup the channel
 	dma_channel_configure(channel, &channel_config,
-	                      config.write_addr, // Write to the buffer
-	                      config.read_addr, // Read from source
-	                      config.transfer_count, // Amount of data to read.
+	                      readConfig.write_addr, // Write to the buffer
+	                      readConfig.read_addr, // Read from source
+	                      readConfig.transfer_count, // Amount of data to read.
 	                      false          // don't start yet
 	);
+	lastConfig = Op::read;
+//	lastConfig = Op::none;
+	read_addr = readConfig.read_addr; // Needed for late activation.
 	// Tell the DMA to raise IRQ line 0 when the channel finishes a block
 	dma_channel_set_irq0_enabled(channel, true);
 }
 
+DMAChannel::DMAChannel(const DMAChannelConfig &readConfig2,
+                       const DMAChannelConfig &writeConfig)
+: DMAChannel(readConfig2)
+{
+	writeChannelConfig = dma_channel_get_default_config(channel);
+	// Set the transfer size
+	channel_config_set_transfer_data_size(&writeChannelConfig, writeConfig.transferSize);
+	// Increment the read address (a different word in the buffer each time)
+	channel_config_set_read_increment(&writeChannelConfig, true);
+	// Write to the same address each time
+	channel_config_set_write_increment(&writeChannelConfig, false);
+	// Transfer based on the given transfer request signal
+	channel_config_set_dreq(&writeChannelConfig, writeConfig.dreq);
+	write_addr = writeConfig.write_addr; // needed for activation
+}
+DMAChannel::~DMAChannel()
+{
+	dma_channel_set_irq0_enabled(channel, false);
+	// Cancel any ongoing DMA transfer on the channel.
+	// Note: It returns only when canceled. Unknown timing.
+	// Writing to the cancel register before disabling the IRQ might save some cycles
+	dma_channel_abort(channel);
+}
 }
