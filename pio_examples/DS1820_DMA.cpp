@@ -86,38 +86,27 @@ writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 	writeTicks = getTicks() - t0;
 }
 
+task<>
+writeBytes(async::hw::DMAChannel &dmaChannel,
+           span<uint16_t> dmaBuffer,
+           PIO pio, uint sm,
+           span<const uint8_t> bytes)
+{
+	auto len = bytes.size();
+	// Fill the header data
+	dmaBuffer[0] = 250;
+	dmaBuffer[1] = static_cast<uint16_t >(8*len-1);
+	for (int i = 0; i < len; i += 2)
+		dmaBuffer[2+i] = bytes[i] | (bytes[i + 1] << 8u);
+	co_await dmaChannel.send(dmaBuffer);
+}
+
 uint32_t readTicks;
 
 namespace {
 static array<uint32_t, 9> buffer;
 
-}
-
-task<float>
-getTemperature_DMA(PIO pio, uint sm)
-{
-	static bool               first = true;
-
-	static async::hw::DMAChannel dmaChannel({
-	    .transferSize = DMA_SIZE_32,
-	    .dreq =  pio_get_dreq(pio, sm, false),
-	    .write_addr = buffer.data(),
-	    .read_addr = &pio->rxf[sm],
-	    .transfer_count = buffer.size()
-	});
-	auto t0 = getTicks();
-	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0x44}));
-	auto t1 = getTicks();
-	co_await events::sleep(1000ms);
-	auto t2 = getTicks();
-
-	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
-	auto awaitable = dmaChannel.receive(std::span<uint32_t>{buffer});
-	// Tell the PIO code we want to read and how much data we want
-	sendHeader(pio, sm, 0, buffer.size());
-	auto t3 = getTicks();
-	readTicks = t1-t0 +t3 - t2;
-	auto b = co_await awaitable;
+float convertTemperature() {
 	float temperature = - 1000.0f;
 	array<uint8_t, 9> bytes;
 
@@ -131,7 +120,34 @@ getTemperature_DMA(PIO pio, uint sm)
 		int16_t temp1 = (t2 << 8 | t1);
 		temperature = (float)temp1 / 16;
 	}
-	co_return temperature;
+	return temperature;
+}
+
+}
+
+task<float>
+getTemperature_DMA(PIO pio, uint sm)
+{
+	static async::hw::DMAChannel dmaChannel({
+	    .transferSize = DMA_SIZE_32,
+	    .dreq =  pio_get_dreq(pio, sm, false),
+	    .write_addr = buffer.data(),
+	    .read_addr = &pio->rxf[sm],
+	    .transfer_count = buffer.size()
+	});
+	auto t0 = getTicks();
+	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0x44}));
+	auto t1 = getTicks();
+	co_await events::sleep(1000ms);
+	auto t2 = getTicks();
+	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
+	auto awaitable = dmaChannel.receive(std::span<uint32_t>{buffer});
+	// Tell the PIO code we want to read and how much data we want
+	sendHeader(pio, sm, 0, buffer.size());
+	auto t3 = getTicks();
+	readTicks = t3 - t2;
+	auto b = co_await awaitable;
+	co_return convertTemperature();
 }
 
 uint
