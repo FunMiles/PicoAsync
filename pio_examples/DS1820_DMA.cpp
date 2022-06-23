@@ -70,7 +70,15 @@ void
 sendHeader(PIO pio, uint sm, uint16_t first, uint16_t num_bytes)
 {
 	pio_sm_put_blocking(pio, sm, first);
-	pio_sm_put_blocking(pio, sm, 8*num_bytes-1);
+	pio_sm_put_blocking(pio, sm, 8 * num_bytes - 1);
+}
+
+auto sendHeader(async::hw::DMAChannel &dmaChannel, span<uint32_t> dmaBuffer,
+           PIO pio, uint sm, uint16_t first, uint16_t num_bytes)
+{
+	dmaBuffer[0] = first;
+	dmaBuffer[1] = 8*num_bytes-1;
+	return dmaChannel.send(std::span<uint32_t>(dmaBuffer.data(), 2));
 }
 
 void
@@ -86,19 +94,18 @@ writeBytes(PIO pio, uint sm, span<const uint8_t> bytes)
 	writeTicks = getTicks() - t0;
 }
 
-task<>
-writeBytes(async::hw::DMAChannel &dmaChannel,
-           span<uint16_t> dmaBuffer,
-           PIO pio, uint sm,
-           span<const uint8_t> bytes)
+auto
+writeBytes(async::hw::DMAChannel &dmaChannel, span<uint32_t> dmaBuffer,
+           PIO pio, uint sm, span<const uint8_t> bytes)
 {
 	auto len = bytes.size();
 	// Fill the header data
 	dmaBuffer[0] = 250;
-	dmaBuffer[1] = static_cast<uint16_t >(8*len-1);
+	dmaBuffer[1] = static_cast<uint16_t>(8 * len - 1);
+	// Fill the data
 	for (int i = 0; i < len; i += 2)
-		dmaBuffer[2+i] = bytes[i] | (bytes[i + 1] << 8u);
-	co_await dmaChannel.send(dmaBuffer);
+		dmaBuffer[2 + i] = bytes[i] | (bytes[i + 1] << 8u);
+	return dmaChannel.send(std::span<uint32_t>(dmaBuffer.data(), 2 + len / 2));
 }
 
 uint32_t readTicks;
@@ -106,8 +113,10 @@ uint32_t readTicks;
 namespace {
 static array<uint32_t, 9> buffer;
 
-float convertTemperature() {
-	float temperature = - 1000.0f;
+float
+convertTemperature()
+{
+	float             temperature = -1000.0f;
 	array<uint8_t, 9> bytes;
 
 	for (int i = 0; i < bytes.size(); i++) {
@@ -123,27 +132,35 @@ float convertTemperature() {
 	return temperature;
 }
 
-}
+} // namespace
 
 task<float>
 getTemperature_DMA(PIO pio, uint sm)
 {
-	static async::hw::DMAChannel dmaChannel({
-	    .transferSize = DMA_SIZE_32,
-	    .dreq =  pio_get_dreq(pio, sm, false),
-	    .write_addr = buffer.data(),
-	    .read_addr = &pio->rxf[sm],
-	    .transfer_count = buffer.size()
-	});
-	auto t0 = getTicks();
-	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0x44}));
+	static std::array<uint32_t, 8> dmaSendBuffer;
+
+	static async::hw::DMAChannelConfig readConfig{.transferSize = DMA_SIZE_32,
+	                                              .dreq = pio_get_dreq(pio, sm, false),
+	                                              .write_addr = buffer.data(),
+	                                              .read_addr = &pio->rxf[sm],
+	                                              .transfer_count = buffer.size()};
+	static async::hw::DMAChannelConfig writeConfig{.transferSize = DMA_SIZE_32,
+	                                               .dreq = pio_get_dreq(pio, sm, true),
+	                                               .write_addr = &pio->txf[sm],
+	                                               .read_addr = dmaSendBuffer.data(),
+	                                               .transfer_count = buffer.size()};
+	static async::hw::DMAChannel       dmaChannel(readConfig, writeConfig);
+	auto                               t0 = getTicks();
+	std::array<uint8_t, 2> initCmd{0xCC, 0x44};
+	co_await writeBytes(dmaChannel, dmaSendBuffer, pio, sm, initCmd);
 	auto t1 = getTicks();
 	co_await events::sleep(1000ms);
-	auto t2 = getTicks();
-	writeBytes(pio, sm, ((uint8_t[]){0xCC, 0xBE}));
-	auto awaitable = dmaChannel.receive(std::span<uint32_t>{buffer});
+	auto                   t2 = getTicks();
+	std::array<uint8_t, 2> cmd{0xCC, 0xBE};
+	co_await writeBytes(dmaChannel, dmaSendBuffer, pio, sm, cmd);
 	// Tell the PIO code we want to read and how much data we want
-	sendHeader(pio, sm, 0, buffer.size());
+	co_await sendHeader(dmaChannel, dmaSendBuffer, pio, sm, 0, buffer.size());
+	auto awaitable = dmaChannel.receive(std::span<uint32_t>{buffer});
 	auto t3 = getTicks();
 	readTicks = t3 - t2;
 	auto b = co_await awaitable;
@@ -177,11 +194,12 @@ using events::operator co_await;
 task<>
 print_temp()
 {
+	co_await 4s;
+	std::cout << "Initializing" << std::endl;
 	uint sm = DS18Initalize(pio0, 2);
-
-	co_await 2s;
+	std::cout << "Done initializing" << std::endl;
 	std::cout << "Starting the temperature loop." << std::endl;
-	while(true) {
+	while (true) {
 		float t;
 		do {
 			co_await events::sleep(1s);
@@ -216,7 +234,7 @@ report()
 	auto t0 = co_await 0s;
 	auto st0 = getTicks();
 	for (int i = 0; true; ++i) {
-		auto t = co_await 3s;
+		auto t = co_await 10s;
 		auto st1 = getTicks();
 		std::cout << "Time " << 1e-6 * (t - t0) << " systick " << (st1 - st0) << " write ticks "
 		          << writeTicks << " read ticks " << readTicks << std::endl;
@@ -226,8 +244,9 @@ report()
 
 /// \brief Task checking for USB input character, printing each one on std::cout.
 task<>
-input() {
-	while(true) {
+input()
+{
+	while (true) {
 		auto c = co_await events::one_char();
 		std::cout << "Input: " << c << std::endl;
 	}
