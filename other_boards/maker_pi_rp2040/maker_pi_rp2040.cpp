@@ -16,6 +16,55 @@ const uint    led_pin = 6;
 
 const uint led_pins[] = {0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 26, 27, 28};
 
+int freq[] = { 659, 659, 0, 659, 0, 523, 659, 0, 784 };
+float durations[] = { 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.2 };
+const uint piezo_pin = 22;
+
+class Piezo {
+public:
+	Piezo(uint pin) : pin(pin) {
+		gpio_init(pin);
+		gpio_set_function(pin, GPIO_FUNC_PWM);
+		slice_num = pwm_gpio_to_slice_num(pin);
+	}
+
+	task<> tone(uint frequency, float duration)
+	{
+		if (frequency != 0) {
+			// Set a divider to bring the frequency range between about 20Hz and 10kHz
+			pwm_set_clkdiv_int_frac(slice_num, 125, 0);
+			auto wrap = static_cast<uint16_t>(1.0e6f / frequency);
+			pwm_set_wrap(slice_num, wrap);
+
+			pwm_set_gpio_level(pin, wrap/2);
+			// If not reset, the counter continues from where it was and if it is
+			// already beyond wrap/2, the next pulse change may be delayed by
+			// up to 65536 - current_counter
+			pwm_set_counter(slice_num, 0);
+			// Set the PWM running
+			pwm_set_enabled(slice_num, true);
+		}
+		co_await  (static_cast<int>(duration*1e6) * 1us);
+		pwm_set_enabled(slice_num, false);
+	}
+
+private:
+	uint pin;
+	uint slice_num;
+};
+
+bool tones_are_playing = true;
+
+task<> play_tones()
+{
+	tones_are_playing = true;
+	Piezo piezo(piezo_pin);
+	for (int i = 0; i < 9; ++i) {
+		co_await piezo.tone(freq[i], durations[i]);
+	}
+	tones_are_playing = false;
+}
+
 /// Task blinking All blue LEDs in sequence.
 template <size_t N>
 task<>
@@ -72,10 +121,18 @@ task<>
 buttons() {
 	const uint buttonA = 20;
 	const uint buttonB = 21;
+	co_await 5s;
+	std::cout << "Starting pin listener." << std::endl;
 	events::pin_listener pinListener(buttonA, buttonB);
 	while(true) {
 		auto [pin, event] = co_await pinListener.next();
 		std::cout << "Pin " << pin << " got event " << event << std::endl;
+
+		if (pin == 21 && event == 8)
+			if (!tones_are_playing) {
+				tones_are_playing = true;
+				core_loop().start_task(play_tones());
+			}
 	}
 }
 
@@ -95,8 +152,8 @@ servo(uint pin)
 	pwm_set_enabled(slice_num, true);
 	uint16_t level = 0;
 	while (true) {
-		co_await 20ms;
-		level += 100;
+		co_await 5ms;
+		level += 50;
 		// Servos want a duty cycle between 5 and 10%
 		pwm_set_gpio_level(pin, 3270+level/20);
 	}
@@ -107,5 +164,9 @@ main()
 {
 	stdio_init_all();
 	// Start the main loop with two tasks.
-	loop_control.loop(blink(led_pins, 250), neoPixel(18), servo(15), buttons());
+	loop_control.loop(
+	    blink(led_pins, 250),
+	    neoPixel(18),
+	    servo(15),
+	    play_tones(),  buttons());
 }
