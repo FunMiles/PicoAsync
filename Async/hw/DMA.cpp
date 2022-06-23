@@ -59,6 +59,7 @@ DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 	    }();
 	// Allocate a DMA channel panic if none available.
 	channel = dma_claim_unused_channel(true);
+	std::cout << "Channel: " << channel << std::endl;
 	dma_channel_config &channel_config = readChannelConfig;
 	channel_config = dma_channel_get_default_config(channel);
 	// Set the transfer size
@@ -70,14 +71,7 @@ DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 	// Transfer based on the given transfer request signal
 	channel_config_set_dreq(&channel_config, readConfig.dreq);
 	// Setup the channel
-	dma_channel_configure(channel, &channel_config,
-	                      readConfig.write_addr, // Write to the buffer
-	                      readConfig.read_addr, // Read from source
-	                      readConfig.transfer_count, // Amount of data to read.
-	                      false          // don't start yet
-	);
-	lastConfig = Op::read;
-//	lastConfig = Op::none;
+	lastConfig = Op::none;
 	read_addr = readConfig.read_addr; // Needed for late activation.
 	// Tell the DMA to raise IRQ line 0 when the channel finishes a block
 	dma_channel_set_irq0_enabled(channel, true);
@@ -105,5 +99,6 @@ DMAChannel::~DMAChannel()
 	// Note: It returns only when canceled. Unknown timing.
 	// Writing to the cancel register before disabling the IRQ might save some cycles
 	dma_channel_abort(channel);
+	dma_channel_unclaim(channel);
 }
 }
