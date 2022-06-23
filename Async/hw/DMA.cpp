@@ -24,7 +24,7 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 	// Acknowledge the interrupt.
 	// Clear the interrupt request.
 	dma_hw->ints0 = status;
-	// Pass it on for processing
+	// Pass it on for processing. The following runs on the main loop.
 	auto work = [](decltype(status) st) -> task<> {
 		auto channel = std::countr_zero(st);
 		auto &target = DMAChannel::channelTargets[get_core_num()][channel];
@@ -33,8 +33,9 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 		if (target.handle) {
 			// We can resume here. This coroutine is running directly from
 			// the loop and the stack use is small until now.
-			target.handle.resume();
-			target = {};
+			auto handle = target.handle;
+			target = {}; // Clear before resuming. (resume can install another target)
+			handle.resume();
 		} else {
 			// The awaitable will not pause the caller's execution.
 			target.done = true;
@@ -59,7 +60,6 @@ DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 	    }();
 	// Allocate a DMA channel panic if none available.
 	channel = dma_claim_unused_channel(true);
-	std::cout << "Channel: " << channel << std::endl;
 	dma_channel_config &channel_config = readChannelConfig;
 	channel_config = dma_channel_get_default_config(channel);
 	// Set the transfer size

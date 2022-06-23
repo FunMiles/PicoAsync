@@ -4,9 +4,9 @@
 
 #pragma once
 #include <coroutine>
-#include <iostream>
 #include <span>
 
+#include <atomic>
 #include <hardware/dma.h>
 #include <pico/multicore.h>
 
@@ -62,14 +62,11 @@ public:
 			                      buffer.size(), // Amount of data to write.
 			                      true          // start
 			);
-			std::cout << "Set up the channel for reading!!!" << std::endl;
 			dma_channel_set_irq0_enabled(channel, true);
-			std::cout << "IRQ set" << std::endl;
 			lastConfig = read;
 		} else {
 			dma_channel_transfer_to_buffer_now(channel, buffer.data(), buffer.size());
 		}
-		std::cout << "Returning" << std::endl;
 		return awaitable{channel, buffer};
 	}
 
@@ -81,12 +78,12 @@ public:
 				return channelTargets[get_core_num()][channel].done;
 			}
 			std::coroutine_handle<> await_suspend(std::coroutine_handle<> h) {
+				// Set the handle to be rescheduled by the interrupt
+				channelTargets[get_core_num()][channel].handle = h;
 				if (channelTargets[get_core_num()][channel].done) {
 					channelTargets[get_core_num()][channel] = {};
 					return h;
 				}
-				// Set the handle to be rescheduled by the interrupt
-				channelTargets[get_core_num()][channel].handle = h;
 				return std::noop_coroutine();
 			}
 			auto await_resume() { return buffer.data(); }
@@ -96,10 +93,10 @@ public:
 
 		// In case a transfer was abandoned...
 		channelTargets[get_core_num()][channel] = {};
+		std::atomic_thread_fence(std::memory_order_release);
 		// Initiate the transfer
 		if (lastConfig != write) {
 			dma_channel_set_irq0_enabled(channel, true);
-			std::cout << "IRQ Enabled" << std::endl;
 			// Setup the channel
 			dma_channel_configure(channel, &writeChannelConfig,
 			                      write_addr, // Write to the peripheral
@@ -107,12 +104,10 @@ public:
 			                      buffer.size(), // Amount of data to write.
 			                      true          // Start
 			);
-			std::cout << "Set up the channel for writing. "<< buffer.size() << std::endl;
 
 			lastConfig = write;
 		} else {
-			dma_channel_set_trans_count(channel, buffer.size(), false);
-			dma_channel_set_read_addr(channel, buffer.data(), true);
+			dma_channel_transfer_from_buffer_now(channel, buffer.data(), buffer.size());
 		}
 
 		return awaitable{channel, buffer};
@@ -126,6 +121,9 @@ private:
 		std::coroutine_handle<> handle;
 		Awaiting(){};
 	};
+	/// \brief Handle awaiting an IRQ
+	/// or notification that the IRQ already took place.
+	/// \details This array is only touched from a main loop.
 	static inline Awaiting channelTargets[numCores][numChannels];
 	/// \brief DMA Hardware channel
 	int channel;
