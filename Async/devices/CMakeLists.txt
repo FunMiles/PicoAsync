@@ -1,1 +1,2 @@
 add_subdirectory(neopixel)
+add_subdirectory(ssd1306)
