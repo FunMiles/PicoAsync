@@ -92,6 +92,19 @@ In the future, a mechanism for moving a task from one core to the other will be 
 Intercore communication can currently be handled using direct calls to the sdk.
 In the future, asynchronous awaitable objects will be provided by this library.
 
+## Devices
+The library will progressively add supported devices to make it easy
+to use most common devices. 
+Currently, the list of devices is:
+ - [NeoPixel](Async/devices/neopixel/NeoPixel.md)
+ - DS1820 : Currently found in the examples.
+## Boards
+The examples in the *example* directory work on the standard
+Raspberry Pi Pico board. Demos for other boards with their specific 
+hardware will be progressively added.
+
+Currently, the list of other boards is:
+ - [Maker Pi RP2040 board](other_boards/maker_pi_rp2040/MakerPiRP2040.md)
 ## Examples
 
 There are 3 examples:
