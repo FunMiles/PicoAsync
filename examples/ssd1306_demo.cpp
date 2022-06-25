@@ -9,6 +9,7 @@
 #include "hardware/i2c.h"
 
 #include <Async/devices/ssd1306/SSD1306.h>
+#include <Async/devices/ssd1306/textRenderer/TextRenderer.h>
 #include <iostream>
 
 using namespace std::chrono_literals;
@@ -79,6 +80,8 @@ ssd1306(uint basePin)
 			display.setPixel(xx, 16);
 			display.setPixel(xx, 31);
 		}
+		drawText(&display, font_12x16, "TEST text", 0 ,0);
+		drawText(&display, font_12x16, "Temp 69\xf8""F", 0 ,16);
 		co_await display.sendBuffer(); // Send buffer to device and show on screen
 		co_await 50ms;
 	}
