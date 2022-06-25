@@ -98,6 +98,7 @@ to use most common devices.
 Currently, the list of devices is:
  - [NeoPixel](Async/devices/neopixel/NeoPixel.md)
  - DS1820 : Currently found in the examples.
+ - SSD1830 based OLED display
 ## Boards
 The examples in the *example* directory work on the standard
 Raspberry Pi Pico board. Demos for other boards with their specific 
@@ -110,6 +111,10 @@ Currently, the list of other boards is:
 There are 3 examples:
 - main - 3 tasks: flashes the LED; prints a timer; prints when pin 26 experiences
 an edge up or down.
+- examples/ssd1306_demo - Assumes a 128x32 OLED display connected to GPIO pins 1 and 2: 3 tasks:
+    - flashes the LED
+    - draw a vertical line moving from left to right
+    - draws three horizontal lines moving from right to left
 - pio_examples/DS1820 - 4 tasks:
     - flashes the LED
     - read the temperature from a thermometer attached to pin 2

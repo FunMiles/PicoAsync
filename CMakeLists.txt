@@ -17,6 +17,7 @@ add_executable(AsyncPico main.cpp)
 pico_add_extra_outputs(AsyncPico)
 
 target_link_libraries(AsyncPico Async
+        ssd1306
         pico_stdlib pico_multicore)
 
 # Enable USB output, disable UART output.

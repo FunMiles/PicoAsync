@@ -1,11 +1,15 @@
 //
-// Created by Michel Lesoinne on 6/23/22.
+// Created on 6/23/22 with code from https://github.com/Harbys/pico-ssd1306.
+// This version adds DMA-Driven asynchronous capability.
 //
 #pragma once
 
-#include <string.h>
-#include "hardware/i2c.h"
 #include "frameBuffer/FrameBuffer.h"
+#include "hardware/i2c.h"
+#include "hw/DMA.h"
+#include <string.h>
+
+#include <Async/task.h>
 
 namespace pico_ssd1306 {
 /// Register addresses from datasheet
@@ -73,9 +77,14 @@ private:
 
 	bool inverted;
 
+	uint16_t dmaBuffer[FRAMEBUFFER_SIZE + 1];
+
+	async::hw::DMAChannel dmaChannel;
+
 	/// \brief Sends single 8bit command to ssd1306 controller
 	/// \param command - byte to be sent to controller
 	void cmd(unsigned char command);
+	task<> sendDataNonBlocking();
 
 public:
 	/// \brief SSD1306 constructor initialized display and sets all required registers for operation
@@ -93,7 +102,9 @@ public:
 	void setPixel(int16_t x, int16_t y, WriteMode mode = WriteMode::ADD);
 
 	/// \brief Sends frame buffer to display so that it updated
-	void sendBuffer();
+	void blockingSendBuffer();
+	/// \brief Non-blocking version of blockingSendBuffer(). Call co_await sendBuffer()
+	task<> sendBuffer();
 
 	/// \brief Adds bitmap image to frame buffer
 	/// \param anchorX - sets start point of where to put the image on the screen

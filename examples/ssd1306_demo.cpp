@@ -1,3 +1,6 @@
+//
+// Created by Michel Lesoinne on 6/24/22.
+//
 #include "Async/events.h"
 #include "Async/task.h"
 #include "pico/multicore.h"
@@ -13,15 +16,12 @@ using namespace std::chrono_literals;
 using events::operator co_await;
 
 const uint led_pin = 25;
-const uint button_pin = 16;
+const uint i2c_base_pin = 0;
+
 /// Task blinking the LED twice per second.
 task<>
 blink(uint pin, uint delay)
 {
-
-	gpio_init(pin);
-	gpio_set_dir(pin, GPIO_OUT);
-
 	while (true) {
 		co_await events::sleep(delay * 1ms);
 		gpio_put(pin, 1);
@@ -29,41 +29,19 @@ blink(uint pin, uint delay)
 		gpio_put(pin, 0);
 	}
 }
-task<>
-say_something()
-{
-	std::cout << "I am saying something" << std::endl;
-	co_return;
-}
 
 /// Task printing every 3 seconds.
 task<>
 report()
 {
 	auto t0 = co_await events::sleep(0s);
-	for (int i = 0; true; ++i) {
-		if (i >= 10) {
-			std::cout << "Now!" << std::endl;
-			core_loop().start_task(say_something());
-		}
-		else
-			std::cout << "Not yet!" << std::endl;
+	while(true) {
 		auto t = co_await events::sleep(3s);
 		std::cout << "Time " << 1e-6 * (t - t0) << std::endl;
 	}
 }
 
-task<>
-pin(uint bp, auto... button_pins)
-{
-	events::pin_listener pinListener(bp, static_cast<uint>(button_pins)...);
-	for (int i = 0; true; ++i) {
-		auto event = co_await pinListener.next();
-		std::cout << "On core " << get_core_num() << ", event is " << event.second << " for pin "
-		          << event.first << std::endl;
-	}
-}
-
+/// \brief Drive a 128x32 SSD1306-based OLED display
 task<>
 ssd1306(uint basePin)
 {
@@ -77,7 +55,8 @@ ssd1306(uint basePin)
 	gpio_pull_up(I2C_PIN_SDA);
 	gpio_pull_up(I2C_PIN_SCL);
 
-	//Create a new display object
+	// Create a new display object
+	// To drive a 128x64 display, change the 0x3C into 0x3D and the last argument.
 	pico_ssd1306::SSD1306 display = pico_ssd1306::SSD1306(I2C_PORT, 0x3C, pico_ssd1306::Size::W128xH32);
 
 
@@ -109,12 +88,10 @@ int
 main()
 {
 
-	stdio_init_all();
+	gpio_init(led_pin);
+	gpio_set_dir(led_pin, GPIO_OUT);
 
-	multicore_launch_core1([]() {
-		std::cout << "I am on core " << get_core_num() << std::endl;
-		core_loop().loop(ssd1306(0));
-	});
-	// Start the main loop with two tasks.
-	loop_control.loop(blink(led_pin, 250), report(), pin(button_pin));
+	stdio_init_all();
+	// Start the main loop with three tasks.
+	loop_control.loop(blink(led_pin, 250), ssd1306(i2c_base_pin), report());
 }

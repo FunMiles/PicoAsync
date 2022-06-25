@@ -1,13 +1,29 @@
 //
 // Created by Michel Lesoinne on 6/23/22.
 //
+#include <hardware/i2c.h>
 
 #include "SSD1306.h"
 
 #include "ssd1306.h"
 
 namespace pico_ssd1306 {
-SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size) {
+SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size) :
+dmaChannel(
+          {.transferSize = DMA_SIZE_16,
+           .dreq = i2c_get_dreq(i2CInst, false), //
+           .write_addr = dmaBuffer,
+           .read_addr = &i2CInst->hw->data_cmd, // Not the right one.
+           .transfer_count = 1025},
+          {
+              .transferSize = DMA_SIZE_16,
+              .dreq = i2c_get_dreq(i2CInst, true), //
+              .write_addr = &i2CInst->hw->data_cmd,
+              .read_addr = dmaBuffer,
+              .transfer_count = 1025
+          }
+          )
+{
 	// Set class instanced variables
 	this->i2CInst = i2CInst;
 	this->address = Address;
@@ -75,7 +91,7 @@ SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size) {
 	// clear the buffer and send it to the display
 	// if not done display shows garbage data
 	this->clear();
-	this->sendBuffer();
+	this->blockingSendBuffer();
 
 }
 
@@ -110,7 +126,7 @@ void SSD1306::setPixel(int16_t x, int16_t y, WriteMode mode) {
 
 }
 
-void SSD1306::sendBuffer() {
+void SSD1306::blockingSendBuffer() {
 	this->cmd(SSD1306_PAGEADDR); //Set page address from min to max
 	this->cmd(0x00);
 	this->cmd(0x07);
@@ -128,6 +144,55 @@ void SSD1306::sendBuffer() {
 
 	// send data to device
 	i2c_write_blocking(this->i2CInst, this->address, data, FRAMEBUFFER_SIZE + 1, false);
+}
+
+task<>
+SSD1306::sendDataNonBlocking()
+{
+	i2CInst->hw->enable = 0;
+	i2CInst->hw->tar = address;
+	i2CInst->hw->enable = 1;
+
+	bool nostop = false;
+
+	auto fb = frameBuffer.get();
+
+	bool first = true;
+	bool last = false;
+	dmaBuffer[0] = bool_to_bit(i2CInst->restart_on_next) << I2C_IC_DATA_CMD_RESTART_LSB |
+	               SSD1306_STARTLINE;
+	for (int i = 0; i < FRAMEBUFFER_SIZE; ++i) {
+		last = i+1 == FRAMEBUFFER_SIZE;
+		dmaBuffer[i + 1] = bool_to_bit(last && !nostop) << I2C_IC_DATA_CMD_STOP_LSB | fb[i];
+	}
+	// Send via DMA
+	co_await dmaChannel.send(std::span<uint16_t>(dmaBuffer));
+	// nostop means we are now at the end of a *message* but not the end of a *transfer*
+	i2CInst->restart_on_next = nostop;
+	co_return;
+}
+
+
+task<>
+SSD1306::sendBuffer() {
+	this->cmd(SSD1306_PAGEADDR); //Set page address from min to max
+	this->cmd(0x00);
+	this->cmd(0x07);
+	this->cmd(SSD1306_COLUMNADDR); //Set column address from min to max
+	this->cmd(0x00);
+	this->cmd(127);
+
+	// create a temporary buffer of size of buffer plus 1 byte for startline command aka 0x40
+	unsigned char data[FRAMEBUFFER_SIZE + 1];
+
+	data[0] = SSD1306_STARTLINE;
+
+	// copy framebuffer to temporary buffer
+	memcpy(data + 1, frameBuffer.get(), FRAMEBUFFER_SIZE);
+
+	// send data to device
+	co_await sendDataNonBlocking();
+	co_return;
 }
 
 void SSD1306::clear() {

@@ -2,7 +2,7 @@ add_executable(simple_multicore)
 
 target_sources(simple_multicore PRIVATE simple.cpp)
 
-target_link_libraries(simple_multicore PRIVATE Async pico_stdlib pico_multicore)
+target_link_libraries(simple_multicore PRIVATE Async pico_stdlib)
 
 pico_add_extra_outputs(simple_multicore)
 
