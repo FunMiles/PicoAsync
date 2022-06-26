@@ -50,7 +50,7 @@ main()
 	gpio_set_dir(led_pin, GPIO_OUT);
 
 	multicore_launch_core1( []() {
-		std::cout << "I am on core " << get_core_num << std::endl;
+		std::cout << "I am on core " << get_core_num() << std::endl;
 		core_loop().loop(report(7));
 	});
 	// Start the main loop with 5 tasks.

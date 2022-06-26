@@ -127,6 +127,45 @@ waiting for and printing any character input from the USB.
 The most interesting example is the last one. It demonstrates
 the use of the pico's PIO system and how to use DMA for asynchronous input.
 
+## How to use this library in your own projects
+
+To use this library in your own project, download the library and note the
+directory where it is located. 
+
+In your project, start with a normal Raspberry Pi Pico project CMakeLists.txt. 
+Then add a few lines to add the library's `Async` directory as a subdirectory.
+Because CMake requires an indirect way of using an external directory for
+`add_subdirectory`, follow the approach given below which creates
+a project with a single `my_async_app` executable target. Note that it seems that the
+variable `ASYNC_EXTERNAL_SOURCE_DIR` must be defined for CMake to
+accept the external subdirectory:
+```cmake
+cmake_minimum_required(VERSION 3.20)
+include ($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+project(MyAsyncProject)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
+# Creates a pico-sdk folder.
+pico_sdk_init()
+
+# MODIFY THE FOLLOWING LINE WITH THE CORRECT PATH OR USE AN
+# ENVIRONMENT VARIABLE SUCH AS $ENV{ASYNC_PICO_PATH}
+set(ASYNC_PICO_DIR /where/you/have/AsyncPico)
+set(ASYNC_EXTERNAL_SOURCE_DIR ${ASYNC_PICO_DIR}/Async CACHE PATH "Async")
+add_subdirectory(${ASYNC_EXTERNAL_SOURCE_DIR} Async)
+
+add_executable(my_async_app main.cpp)
+# You can now use any library from AsyncPico
+target_link_libraries(my_async_app
+        Async ssd1306
+        pico_stdlib pico_multicore)
+pico_add_extra_outputs(my_async_app)
+
+# Enable USB output, disable UART output.
+pico_enable_stdio_usb(my_async_app 1)
+pico_enable_stdio_uart(my_async_app 0)
+```
 ## Notes and Credits
 The code for pio_examples/DS1820 is based on code for
 [A 1-Wire PIO Program](https://www.i-programmer.info/programming/hardware/14527-the-pico-in-c-a-1-wire-pio-program.html).
