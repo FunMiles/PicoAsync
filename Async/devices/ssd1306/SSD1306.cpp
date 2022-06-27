@@ -8,21 +8,16 @@
 #include "ssd1306.h"
 
 namespace pico_ssd1306 {
-SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size) :
-dmaChannel(
-          {.transferSize = DMA_SIZE_16,
-           .dreq = i2c_get_dreq(i2CInst, false), //
-           .write_addr = dmaBuffer,
-           .read_addr = &i2CInst->hw->data_cmd, // Not the right one.
-           .transfer_count = 1025},
+SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size)
+    : dmaChannel(
           {
               .transferSize = DMA_SIZE_16,
-              .dreq = i2c_get_dreq(i2CInst, true), //
-              .write_addr = &i2CInst->hw->data_cmd,
-              .read_addr = dmaBuffer,
-              .transfer_count = 1025
-          }
-          )
+              .dreq = i2c_get_dreq(i2CInst, false), //
+              .read_addr = nullptr,  // Not the right one, we'll never read.
+          },
+          {.transferSize = DMA_SIZE_16,
+           .dreq = i2c_get_dreq(i2CInst, true), //
+           .write_addr = &i2CInst->hw->data_cmd})
 {
 	// Set class instanced variables
 	this->i2CInst = i2CInst;

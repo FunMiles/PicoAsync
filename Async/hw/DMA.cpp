@@ -4,26 +4,28 @@
 #include <span>
 #include <bit>
 
-#include <hardware/dma.h>
 #include "hardware/irq.h"
 #include "pico/multicore.h"
+#include <hardware/dma.h>
+#include <iostream>
 
 #include "DMA.h"
 #include "task.h"
 #include "loop_control.h"
 
 using std::span;
-
+extern volatile int UARTChannel;
 namespace async::hw {
 
 void
 __not_in_flash_func(DMAChannel::dma_irq_handler)()
 {
+	auto &ints = get_core_num() == 0 ? dma_hw->ints0 : dma_hw->ints1;
 	// Get the channel causing the interrupt.
-    auto status = dma_hw->ints0;
+    auto status = ints;
 	// Acknowledge the interrupt.
 	// Clear the interrupt request.
-	dma_hw->ints0 = status;
+	ints = status;
 	// Pass it on for processing. The following runs on the main loop.
 	auto work = [](decltype(status) st) -> task<> {
 		auto channel = std::countr_zero(st);
@@ -51,15 +53,15 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 
 DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 {
-	static int done =
-	    [] {
-		    // Configure the processor to run dma_handler() when DMA IRQ 0 is asserted
-		    irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);
-		    irq_set_enabled(DMA_IRQ_0, true);
-		    return 1;
-	    }();
+	static bool irq_installed[2] = { false, false };
+	if (!irq_installed[get_core_num()]) {
+		irq_set_exclusive_handler(DMA_IRQ_0+get_core_num(), dma_irq_handler);
+		irq_set_enabled(DMA_IRQ_0+get_core_num(), true);
+		irq_installed[get_core_num()] = true;
+	}
 	// Allocate a DMA channel panic if none available.
 	channel = dma_claim_unused_channel(true);
+	std::cout << "Channel: " << channel << std::endl;
 	dma_channel_config &channel_config = readChannelConfig;
 	channel_config = dma_channel_get_default_config(channel);
 	// Set the transfer size
@@ -74,7 +76,10 @@ DMAChannel::DMAChannel(const DMAChannelConfig &readConfig)
 	lastConfig = Op::none;
 	read_addr = readConfig.read_addr; // Needed for late activation.
 	// Tell the DMA to raise IRQ line 0 when the channel finishes a block
-	dma_channel_set_irq0_enabled(channel, true);
+	if (get_core_num() == 0)
+		dma_channel_set_irq0_enabled(channel, true);
+	else
+		dma_channel_set_irq1_enabled(channel, true);
 }
 
 DMAChannel::DMAChannel(const DMAChannelConfig &readConfig2,
@@ -94,7 +99,11 @@ DMAChannel::DMAChannel(const DMAChannelConfig &readConfig2,
 }
 DMAChannel::~DMAChannel()
 {
-	dma_channel_set_irq0_enabled(channel, false);
+	if (get_core_num() == 0)
+		dma_channel_set_irq0_enabled(channel, false);
+	else
+		dma_channel_set_irq1_enabled(channel, false);
+
 	// Cancel any ongoing DMA transfer on the channel.
 	// Note: It returns only when canceled. Unknown timing.
 	// Writing to the cancel register before disabling the IRQ might save some cycles

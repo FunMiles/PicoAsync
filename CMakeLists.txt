@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.15)
 
 include ($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 project(AsyncPico C CXX ASM)

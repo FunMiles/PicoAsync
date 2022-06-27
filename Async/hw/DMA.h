@@ -15,17 +15,27 @@ namespace async::hw {
 struct DMAChannelConfig {
 	dma_channel_transfer_size transferSize;
 	uint dreq;
-	volatile void *write_addr;
-	volatile const void *read_addr;
-	uint transfer_count;
+	/// \brief Hardware read or write address.
+	union {
+		volatile void       *write_addr;
+		volatile const void *read_addr;
+	};
 };
 
 
 
 class DMAChannel {
 public:
-
+	/** \brief Create a read only DMA Channel.
+	 *
+	 * @param readConfig The read configuration.
+	 */
 	DMAChannel(const DMAChannelConfig &readConfig);
+	/** \brief Create a read/write DMA Channel.
+	 *
+	* @param readConfig The read configuration.
+	* @param writeConfig The write configuration.
+	 */
 	DMAChannel(const DMAChannelConfig &readConfig,
 	           const DMAChannelConfig &writeConfig);
 	~DMAChannel();
@@ -62,7 +72,6 @@ public:
 			                      buffer.size(), // Amount of data to write.
 			                      true          // start
 			);
-			dma_channel_set_irq0_enabled(channel, true);
 			lastConfig = read;
 		} else {
 			dma_channel_transfer_to_buffer_now(channel, buffer.data(), buffer.size());
@@ -96,8 +105,7 @@ public:
 		std::atomic_thread_fence(std::memory_order_release);
 		// Initiate the transfer
 		if (lastConfig != write) {
-			dma_channel_set_irq0_enabled(channel, true);
-			// Setup the channel
+			// Set up the channel
 			dma_channel_configure(channel, &writeChannelConfig,
 			                      write_addr, // Write to the peripheral
 			                      buffer.data(), // Read from source
@@ -112,6 +120,8 @@ public:
 
 		return awaitable{channel, buffer};
 	}
+
+	auto getChannel() const { return channel; }
 
 private:
 	static constexpr const uint numCores = 2;

@@ -141,14 +141,10 @@ getTemperature_DMA(PIO pio, uint sm)
 
 	static async::hw::DMAChannelConfig readConfig{.transferSize = DMA_SIZE_32,
 	                                              .dreq = pio_get_dreq(pio, sm, false),
-	                                              .write_addr = buffer.data(),
-	                                              .read_addr = &pio->rxf[sm],
-	                                              .transfer_count = buffer.size()};
+	                                              .read_addr = &pio->rxf[sm]};
 	static async::hw::DMAChannelConfig writeConfig{.transferSize = DMA_SIZE_32,
 	                                               .dreq = pio_get_dreq(pio, sm, true),
-	                                               .write_addr = &pio->txf[sm],
-	                                               .read_addr = dmaSendBuffer.data(),
-	                                               .transfer_count = buffer.size()};
+	                                               .write_addr = &pio->txf[sm]};
 	static async::hw::DMAChannel       dmaChannel(readConfig, writeConfig);
 	auto                               t0 = getTicks();
 	std::array<uint8_t, 2> initCmd{0xCC, 0x44};

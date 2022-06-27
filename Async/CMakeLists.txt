@@ -1,4 +1,4 @@
-add_library(Async INTERFACE inter_core_queue.h devices/ssd1306/SSD1306.cpp devices/ssd1306/SSD1306.h)
+add_library(Async INTERFACE inter_core_queue.h )
 
 set(ASYNC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 get_filename_component(ASYNC_PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
