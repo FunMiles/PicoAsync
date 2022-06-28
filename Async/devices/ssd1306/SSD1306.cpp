@@ -5,8 +5,6 @@
 
 #include "SSD1306.h"
 
-#include "ssd1306.h"
-
 namespace pico_ssd1306 {
 SSD1306::SSD1306(i2c_inst *i2CInst, uint16_t Address, Size size)
     : dmaChannel(
