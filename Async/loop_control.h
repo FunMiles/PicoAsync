@@ -28,10 +28,17 @@ class loop_control {
 	};
 
 public:
+
+	union ActionArg {
+		void *p;
+		std::coroutine_handle<> h;
+		std::array<std::byte,4> a;
+	};
+
 	loop_control(uint num_tasks = 16) {
 		scheduled.reserve(num_tasks);
 		for (auto &fi : fromInterrupts)
-			fi.reserve(16);
+			fi.reserve(64);
 	}
 
 	/** \brief Start a new task. The task can terminate by calling co_return; . */
@@ -52,6 +59,8 @@ public:
 		std::push_heap(scheduled.begin(), scheduled.end(), cmp);
 	}
 
+	auto& get_schedule() const { return scheduled; }
+
 	/** \brief Called by interrupts to insert actions to be taken.
 	 *
 	 * @param handle
@@ -60,7 +69,28 @@ public:
 	void scheduleInterruptAction(std::coroutine_handle<> handle)
 	{
 		auto &inactiveVector = fromInterrupts[1-activeIRQVector];
-		inactiveVector.push_back(handle);
+		inactiveVector.push_back({
+		    .f = [](ActionArg arg) {
+			    if (arg.h) arg.h.resume();
+		    },
+		    .arg = {.h = handle}
+		});
+		IRQVectorStatus[1-activeIRQVector] = IRQVectorStatus[1-activeIRQVector] + 1;
+		__mem_fence_release();
+	}
+
+	/** \brief Called by interrupts to insert actions to be taken.
+	 *
+	 * @param handle
+	 */
+	inline
+	void scheduleInterruptAction(void (*f)(ActionArg), ActionArg arg)
+	{
+		auto &inactiveVector = fromInterrupts[1-activeIRQVector];
+		inactiveVector.push_back({
+		    .f = f,
+		    .arg = arg
+		});
 		IRQVectorStatus[1-activeIRQVector] = IRQVectorStatus[1-activeIRQVector] + 1;
 		__mem_fence_release();
 	}
@@ -82,7 +112,10 @@ public:
 				if (min_time.first < time_us_64()) {
 					std::pop_heap(scheduled.begin(), scheduled.end(), cmp);
 					scheduled.pop_back();
-					min_time.second.resume();
+					if (min_time.second)
+						min_time.second.resume();
+					else
+						std::cout << "Killed???" << std::endl;
 				}
 			}
 			for (auto p : constant_processors)
@@ -95,8 +128,8 @@ public:
 				activeIRQVector = 1-activeIRQVector;
 				std::atomic_thread_fence(std::memory_order_release);
 				auto &activeVector = fromInterrupts[activeIRQVector];
-				for (auto &h : activeVector) {
-					h.resume();
+				for (auto &action : activeVector) {
+					(*action.f)(action.arg);
 				}
 				IRQVectorStatus[activeIRQVector] = 0;
 				activeVector.clear();
@@ -120,6 +153,7 @@ public:
 			if (p.without_arg == processor) {
 				std::swap(p, constant_processors.back());
 				constant_processors.pop_back();
+				break;
 			}
 	}
 	void remove_constant_processor(void (*processor)(void *), void *arg) {
@@ -127,14 +161,31 @@ public:
 			if (p.with_arg == processor && p.arg == arg) {
 				std::swap(p, constant_processors.back());
 				constant_processors.pop_back();
+				break;
 			}
 	}
-
+    /// \brief Remove the handle from being scheduled.
+	bool remove(std::coroutine_handle<> handle) {
+		for (auto &p : scheduled)
+			if (p.second == handle) {
+				std::swap(p, scheduled.back());
+				scheduled.pop_back();
+				std::make_heap(scheduled.begin(), scheduled.end(), cmp);
+				return true;
+			}
+		return false;
+	}
 
 private:
 	bool run{true};
 	/// \brief Heap of scheduled coroutines. Top of the heap is earliest time
 	std::vector<std::pair<uint64_t, std::coroutine_handle<>>> scheduled;
+
+
+	struct IRQAction {
+		void (*f)(ActionArg);
+		ActionArg arg;
+	};
 
 	struct Processor {
 		bool hasArgument;
@@ -150,7 +201,7 @@ private:
 
 	int activeIRQVector = 0;
 	volatile int IRQVectorStatus[2] = {0,0};
-	std::vector<std::coroutine_handle<>> fromInterrupts[2];
+	std::vector<IRQAction> fromInterrupts[2];
 
 	template <typename T0, typename... R>
 	void start(T0 &t0, R &...r)
