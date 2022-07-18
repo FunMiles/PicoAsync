@@ -42,7 +42,6 @@ __not_in_flash_func(DMAChannel::dma_irq_handler)()
 			// The awaitable will not pause the caller's execution.
 			target.done = true;
 		}
-		// Mark there's something or schedule the awaiting
 		co_return;
 	};
 	auto t = work(status);

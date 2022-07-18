@@ -124,6 +124,8 @@ struct task<T, lazy>::task_promise : public promise_setter<T> {
 			return coroutines::suspend_never{};
 	}
 
+	/// \brief Get an awaiter with the continuation if any.
+	/// \details If T is void, co_await final_suspend(); will destroy the coroutine frame.
 	auto final_suspend() const noexcept
 	{
 		struct awaiter {
@@ -162,7 +164,6 @@ struct task<T, lazy>::task_promise : public promise_setter<T> {
 
 	void unhandled_exception() noexcept
 	{
-		//    std::cerr << "Unhandled exception caught...\n";
 		std::terminate();
 	}
 
