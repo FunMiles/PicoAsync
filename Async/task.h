@@ -7,7 +7,7 @@
 #include <coroutine>
 #include <memory>
 #include <optional>
-
+namespace async {
 namespace coroutines = std;
 
 template <typename T = void, bool lazy = true>
@@ -33,9 +33,7 @@ struct [[nodiscard]] task {
 	}
 
 	auto get_handle() const { return my_handle; }
-	void detach() {
-		my_handle = nullptr;
-	}
+	void detach() { my_handle = nullptr; }
 
 	task &operator=(task &&other) noexcept
 	{
@@ -50,6 +48,7 @@ struct [[nodiscard]] task {
 
 		return *this;
 	}
+	/** \brief Provides for co_awaiting a task. */
 	auto operator co_await() noexcept
 	{
 		struct awaiter {
@@ -162,13 +161,12 @@ struct task<T, lazy>::task_promise : public promise_setter<T> {
 		return awaiter{};
 	}
 
-	void unhandled_exception() noexcept
-	{
-		std::terminate();
-	}
+	void unhandled_exception() noexcept { std::terminate(); }
 
 	void set_continuation(coroutines::coroutine_handle<> handle) { continuation = handle; }
 
 private:
 	coroutines::coroutine_handle<> continuation = coroutines::noop_coroutine();
 };
+
+} // namespace async

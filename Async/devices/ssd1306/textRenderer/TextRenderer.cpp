@@ -5,6 +5,25 @@
 
 namespace pico_ssd1306 {
 
+
+void drawText(pico_ssd1306::SSD1306 *ssd1306, const unsigned char *font, const std::string_view &text, uint8_t anchor_x,
+         uint8_t anchor_y, WriteMode mode, Rotation rotation) {
+	uint8_t font_width = font[0];
+
+	for (int n; auto c : text) {
+		switch (rotation) {
+		case Rotation::deg0:
+			drawChar(ssd1306, font, c, anchor_x + (n * font_width), anchor_y, mode, rotation);
+			break;
+		case Rotation::deg90:
+			drawChar(ssd1306, font, c, anchor_x, anchor_y + (n * font_width), mode, rotation);
+			break;
+		}
+
+		n++;
+	}
+}
+
 void drawText(pico_ssd1306::SSD1306 *ssd1306, const unsigned char *font, const char *text, uint8_t anchor_x,
          uint8_t anchor_y, WriteMode mode, Rotation rotation) {
 	uint8_t font_width = font[0];

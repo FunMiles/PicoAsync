@@ -9,6 +9,7 @@
 #include <iostream>
 
 using namespace std::chrono_literals;
+using namespace async;
 // Make it possible to await a duration
 using events::operator co_await;
 

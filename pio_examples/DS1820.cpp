@@ -18,6 +18,8 @@ using namespace std::chrono_literals;
 
 using namespace std;
 
+using namespace async;
+
 uint tickWrap = 0;
 
 uint wpCount{0x1000000u};

@@ -21,6 +21,8 @@ using namespace std::chrono_literals;
 
 using namespace std;
 
+using namespace async;
+
 const uint led_pin = 25;
 const uint button_pin = 16;
 

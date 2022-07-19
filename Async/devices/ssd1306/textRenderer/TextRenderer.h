@@ -37,4 +37,14 @@ void drawChar(pico_ssd1306::SSD1306 *ssd1306, const unsigned char * font, char c
 /// \param mode - mode describes setting behavior. See WriteMode doc for more information
 /// \param rotation - either rotates the text by 90 deg or leaves it unrotated
 void drawText(pico_ssd1306::SSD1306 *ssd1306, const unsigned char * font, const char * text, uint8_t anchor_x, uint8_t anchor_y, WriteMode mode = WriteMode::ADD, Rotation rotation = Rotation::deg0);
+
+
+/// \brief Draws text on screen
+/// \param ssd1306 - pointer to a SSD1306 object aka initialised display
+/// \param font - pointer to a font data array
+/// \param text - text to be drawn
+/// \param anchor_x, anchor_y - coordinates setting where to put the text
+/// \param mode - mode describes setting behavior. See WriteMode doc for more information
+/// \param rotation - either rotates the text by 90 deg or leaves it unrotated
+void drawText(pico_ssd1306::SSD1306 *ssd1306, const unsigned char * font, const std::string_view &text, uint8_t anchor_x, uint8_t anchor_y, WriteMode mode = WriteMode::ADD, Rotation rotation = Rotation::deg0);
 }

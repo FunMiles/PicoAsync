@@ -92,6 +92,10 @@ In the future, a mechanism for moving a task from one core to the other will be 
 Intercore communication can currently be handled using direct calls to the sdk.
 In the future, asynchronous awaitable objects will be provided by this library.
 
+## Pico Hardware
+The *async_hardware* library offers asynchronous interface to the following hardware components:
+ - DMA Channels
+ - UART
 ## Devices
 The library will progressively add supported devices to make it easy
 to use most common devices. 

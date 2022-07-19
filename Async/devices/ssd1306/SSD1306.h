@@ -12,6 +12,8 @@
 #include <Async/task.h>
 
 namespace pico_ssd1306 {
+using namespace async;
+
 /// Register addresses from datasheet
 enum REG_ADDRESSES : unsigned char{
 	SSD1306_CONTRAST = 0x81,

@@ -12,3 +12,4 @@ pico_enable_stdio_usb(ssd1306_demo 1)
 pico_enable_stdio_uart(ssd1306_demo 0)
 
 add_subdirectory(multicore)
+add_subdirectory(es_1)

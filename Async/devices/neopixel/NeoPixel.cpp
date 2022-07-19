@@ -17,7 +17,7 @@ uint32_t packColor(const RGBValues &rgb){
     (static_cast<uint32_t>(rgb[2]));
 }
 
-task<>
+async::task<>
 NeoPixel::show()
 {
 	static std::array<uint32_t,32> buffer;

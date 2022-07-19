@@ -13,6 +13,7 @@
 #include "Async/events.h"
 #include "Async/task.h"
 
+using namespace async;
 using namespace std::chrono_literals;
 // To be able to co_await a duration. E.g. co_await 3ms;
 using events::operator co_await;

@@ -21,7 +21,7 @@ public:
 	void push_back(const RGBValues &rgb) { data.push_back(rgb); }
 	auto size() const { return data.size(); }
 	/// \brief Display the current state.
-	task<> show();
+	async::task<> show();
 private:
 	uint pin;
 	uint numLEDs;

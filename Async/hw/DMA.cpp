@@ -14,7 +14,7 @@
 #include "loop_control.h"
 
 using std::span;
-extern volatile int UARTChannel;
+
 namespace async::hw {
 
 void

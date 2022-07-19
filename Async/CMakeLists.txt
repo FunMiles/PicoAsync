@@ -1,4 +1,4 @@
-add_library(Async INTERFACE inter_core_queue.h )
+add_library(Async INTERFACE inter_core_queue.h compose.h)
 
 set(ASYNC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 get_filename_component(ASYNC_PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
