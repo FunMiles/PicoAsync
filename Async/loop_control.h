@@ -8,6 +8,7 @@
 #include <coroutine>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include <atomic>
 #include <hardware/sync.h>
