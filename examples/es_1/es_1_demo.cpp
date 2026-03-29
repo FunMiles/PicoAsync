@@ -1,9 +1,7 @@
-//
-// Demo created on 7/19/22.
-//
-//
-// Created by Michel Lesoinne on 6/24/22.
-//
+/*
+ * Copyright (c) 2022 Michel Lesoinne
+ * SPDX-License-Identifier: MIT
+ */
 #include <iostream>
 #include <regex>
 //

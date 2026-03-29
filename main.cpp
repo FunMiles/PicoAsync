@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2022 Michel Lesoinne
+ * SPDX-License-Identifier: MIT
+ */
+
 #include "Async/events.h"
 #include "Async/task.h"
 #include "pico/multicore.h"

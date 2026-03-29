@@ -1,6 +1,8 @@
-//
-// Created by Michel Lesoinne on 6/1/22.
-//
+/*
+ * Copyright (c) 2022 Michel Lesoinne
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <array>
 #include <span>
 #include <stdio.h>
